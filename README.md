@@ -6,12 +6,30 @@ Verified against `@earendil-works/pi-coding-agent` **v0.87.1**.
 
 ## Features
 
-- **Progressive Context Disclosure:** Lightweight entry point (`SKILL.md`) that loads detailed specifications only on demand, saving thousands of API tokens per session.
-- **The Trailing Space Contract:** Exact specification for slash command autocompletion chaining (`item.value` space vs non-space rules).
-- **Schema & TypeBox Rules:** Mandatory `StringEnum` patterns from `@earendil-works/pi-ai` (avoiding Google Gemini 400 Bad Request errors) and error reporting via `throw`.
-- **0.87.x Engine Boundaries:** Canonical `SessionManager` context, append-only edits, and actionable `turn_end` / `agent_before_settle` hooks.
-- **State Persistence Guide:** Branch-aware session state (`details` + `getBranch()`), hidden TUI entries, and global config.
-- **Live Local Engine Docs:** Direct path references to local installed documentation (`$PI_DOCS`).
+- **Skill Action & Guidance Visualizer:** Real-time visual tracking of active skills, loaded references, inspected files, and actions taken (inspired by \`pi-mcp-viz\`).
+- **Real-Time Instruction Auditor:** Live verification gates checking code edits against active skill invariants (Trailing Space Contract, StringEnum, Error throw contract, peerDependencies).
+- **Floating HUD Overlay:** High-contrast, non-blocking modal in the top-right corner (\`ctx.ui.custom\` overlay) showing live focus and compliance badges.
+- **Docked Editor Widget:** Compact above-editor status card showing active guidance and verified gates.
+- **Durable Transcript Cards:** Audit receipt appended to chat log on agent settlement.
+- **Progressive Context Disclosure:** Lightweight entry point (\`SKILL.md\`) that loads detailed specifications only on demand, saving thousands of API tokens per session.
+- **The Trailing Space Contract:** Exact specification for slash command autocompletion chaining (\`item.value\` space vs non-space rules).
+- **Schema & TypeBox Rules:** Mandatory \`StringEnum\` patterns from \`@earendil-works/pi-ai\` (avoiding Google Gemini 400 Bad Request errors) and error reporting via \`throw\`.
+- **0.87.x Engine Boundaries:** Canonical \`SessionManager\` context, append-only edits, and actionable \`turn_end\` / \`agent_before_settle\` hooks.
+- **State Persistence Guide:** Branch-aware session state (\`details\` + \`getBranch()\`), hidden TUI entries, and global config.
+- **Live Local Engine Docs:** Direct path references to local installed documentation (\`$PI_DOCS\`).
+
+## Commands
+
+Manage visualizer and compliance settings with `/plugin-dev`:
+
+| Command | Description |
+|---|---|
+| `/plugin-dev status` | Display live compliance scorecard and loaded skill audit |
+| `/plugin-dev hud on\|off` | Toggle floating HUD overlay in top-right corner |
+| `/plugin-dev widget on\|off` | Toggle docked status widget above editor |
+| `/plugin-dev card on\|off` | Toggle durable audit summary cards in chat log |
+| `/plugin-dev reset` | Clear current run history and loaded guidance trackers |
+| `/plugin-dev help` | Show command help banner |
 
 ## Installation
 
