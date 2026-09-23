@@ -125,8 +125,15 @@ export default function (pi: ExtensionAPI): void {
 		if (config.widget) updateSkillWidget(ctx, ctx.ui.theme, st);
 	});
 
-	pi.on("turn_end", async (_event, _ctx: ExtensionContext) => {
+	pi.on("turn_end", (_event, ctx: ExtensionContext) => {
 		tracker.endTurn();
+
+		// Push the settled state into the visuals so the HUD's auto-dismiss
+		// timer sees `inTurn: false` and can actually fire.
+		if (!ctx.hasUI) return;
+		const st = tracker.getState();
+		if (config.hud) updateSkillHud(st);
+		if (config.widget) updateSkillWidget(ctx, ctx.ui.theme, st);
 	});
 
 	pi.on("agent_settled", async (_event, ctx: ExtensionContext) => {

@@ -12,6 +12,16 @@ export interface HudOptions {
 	requestRender: () => void;
 }
 
+/**
+ * Passive status HUD.
+ *
+ * The overlay is `nonCapturing`, so it never takes keyboard focus away from the
+ * editor — you can keep typing while it is visible. Dismissal is therefore not
+ * driven by `handleInput()` (which an unfocused overlay never receives) but by a
+ * global `ctx.ui.onTerminalInput()` listener registered in `showSkillHud()`.
+ * That listener returns `{ consume: false }` so the very key that dismisses the
+ * HUD still reaches the editor.
+ */
 export class SkillHudCard implements Component {
 	private readonly theme: Theme;
 	private state: SkillExecutionState;
@@ -20,6 +30,7 @@ export class SkillHudCard implements Component {
 	private cachedWidth?: number;
 	private cachedLines?: string[];
 	private timer?: ReturnType<typeof setInterval>;
+	private unsubscribeInput?: () => void;
 
 	constructor(theme: Theme, state: SkillExecutionState, options: HudOptions) {
 		this.theme = theme;
@@ -28,7 +39,7 @@ export class SkillHudCard implements Component {
 
 		this.timer = setInterval(() => {
 			if (this.closed) return;
-			// If turn finished and delay elapsed, auto-dismiss
+			// If the turn finished and the grace delay elapsed, auto-dismiss.
 			if (!this.state.inTurn && Date.now() - this.state.lastUpdateTime > this.options.delayMs) {
 				this.dismiss();
 				return;
@@ -37,6 +48,15 @@ export class SkillHudCard implements Component {
 			this.options.requestRender();
 		}, 300);
 		this.timer.unref?.();
+	}
+
+	/** Register the global input unsubscribe so dismissal can tear it down. */
+	setInputUnsubscribe(unsubscribe: () => void): void {
+		if (this.closed) {
+			unsubscribe();
+			return;
+		}
+		this.unsubscribeInput = unsubscribe;
 	}
 
 	updateState(nextState: SkillExecutionState): void {
@@ -50,20 +70,32 @@ export class SkillHudCard implements Component {
 		this.cachedLines = undefined;
 	}
 
-	dismiss(): void {
-		if (this.closed) return;
-		this.closed = true;
+	private release(): void {
 		if (this.timer) {
 			clearInterval(this.timer);
 			this.timer = undefined;
 		}
+		this.unsubscribeInput?.();
+		this.unsubscribeInput = undefined;
+	}
+
+	/** Called by the TUI when the interaction is disposed without `dismiss()`. */
+	dispose(): void {
+		this.closed = true;
+		this.release();
+	}
+
+	dismiss(): void {
+		if (this.closed) return;
+		this.closed = true;
+		this.release();
 		this.options.onDone();
 	}
 
 	handleInput(): boolean {
-		// Any keypress dismisses the overlay early without consuming the key
+		// Only reachable if the overlay is ever focused; keep it as a fallback.
 		this.dismiss();
-		return false;
+		return true;
 	}
 
 	render(width: number): string[] {
@@ -162,8 +194,8 @@ export class SkillHudCard implements Component {
 		lines.push(th.fg("accent", borderSep));
 
 		// 5. Footer Line
-		const leftFoot = th.fg("dim", "Press any key to dismiss");
-		const rightFoot = th.fg("dim", "pi-plugin-dev");
+		const leftFoot = th.fg("dim", "Any key dismisses");
+		const rightFoot = th.fg("dim", this.state.inTurn ? "pi-plugin-dev · running" : "pi-plugin-dev · done");
 		const footSpace = Math.max(1, innerWidth - visibleWidth(leftFoot) - visibleWidth(rightFoot));
 		lines.push(`${th.fg("accent", "║")} ${leftFoot}${" ".repeat(footSpace)}${rightFoot} ${th.fg("accent", "║")}`);
 
@@ -196,6 +228,15 @@ export function showSkillHud(
 					requestRender: () => tui.requestRender(),
 				});
 				activeHud = card;
+
+				// Passive dismissal: any raw keypress closes the HUD without
+				// swallowing the key (it still reaches the editor).
+				const unsubscribe = ctx.ui.onTerminalInput(() => {
+					card.dismiss();
+					return { consume: false };
+				});
+				card.setInputUnsubscribe(unsubscribe);
+
 				return card;
 			},
 			{
@@ -204,9 +245,9 @@ export function showSkillHud(
 					anchor: "top-right",
 					width: MAX_WIDTH,
 					margin: 1,
+					nonCapturing: true,
 					visible: (termWidth: number) => termWidth >= 70,
 				},
-				onHandle: (handle: OverlayHandle) => handle.unfocus(),
 			},
 		)
 		.catch(() => {
