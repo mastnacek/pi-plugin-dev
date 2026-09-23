@@ -27,6 +27,7 @@ Do not load full API references unless needed. Follow these fast rules, then rea
 - Core packages (`@earendil-works/pi-ai`, `@earendil-works/pi-agent-core`, `@earendil-works/pi-coding-agent`, `@earendil-works/pi-tui`, `typebox`) MUST be in `peerDependencies: { "*": "*" }`. Never bundle them in `dependencies`.
 - Third-party runtime libraries go into `dependencies` (Pi uses production installs, so `devDependencies` are absent at runtime).
 - Add a `pi` manifest (`extensions` / `skills` paths) and a `files` array so the package cannot publish the whole checkout, and ship a `test` script so the plugin proves it does something beyond compiling.
+- Install the package from its GitHub repository (`git:github.com/<owner>/<repo>`), never from the local development checkout — a local path drifts from the repo and defeats distribution (AGENTS §8). After the first successful commit+push, `pi-plugin-dev` offers this install automatically (`/plugin-dev install on|off`).
 
 ### 2. Custom Tools (`pi.registerTool`)
 - **String Enums:** Always use `StringEnum(["a", "b"] as const)` from `@earendil-works/pi-ai`. Never use `Type.Union`/`Type.Literal` (breaks Google Gemini API).

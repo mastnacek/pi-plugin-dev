@@ -16,6 +16,7 @@ export function loadConfig(): PluginDevConfig {
 				transcriptCard: Boolean(parsed?.transcriptCard ?? DEFAULT_CONFIG.transcriptCard),
 				statusline: Boolean(parsed?.statusline ?? DEFAULT_CONFIG.statusline),
 				strictAudit: Boolean(parsed?.strictAudit ?? DEFAULT_CONFIG.strictAudit),
+				installOffer: Boolean(parsed?.installOffer ?? DEFAULT_CONFIG.installOffer),
 			};
 		}
 	} catch {

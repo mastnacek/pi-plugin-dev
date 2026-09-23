@@ -24,18 +24,20 @@ export const COMMAND_DOCS: Record<string, string> = {
 	hud: "Přepnout plovoucí HUD overlay (on | off)",
 	widget: "Přepnout dokovaný widget nad editorem (on | off)",
 	card: "Přepnout ukládání souhrnných karet do chatu (on | off)",
+	install: "Nabízet instalaci z GitHubu po commit+push (on | off)",
 	reset: "Vynulovat počítadla a načtené reference aktuálního běhu",
 	help: "Zobrazit podrobnou nápovědu k příkazu /plugin-dev",
 };
 
 /** Subcommands that take parameters; their first-level row keeps the space. */
-export const NON_TERMINAL = new Set(["hud", "widget", "card"]);
+export const NON_TERMINAL = new Set(["hud", "widget", "card", "install"]);
 
 /** Live on/off value of a toggle subcommand, or undefined for non-toggles. */
 export function toggleStateFor(config: PluginDevConfig, cmd: string): boolean | undefined {
 	if (cmd === "hud") return config.hud;
 	if (cmd === "widget") return config.widget;
 	if (cmd === "card") return config.transcriptCard;
+	if (cmd === "install") return config.installOffer;
 	return undefined;
 }
 

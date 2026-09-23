@@ -8,7 +8,7 @@ Verified against `@earendil-works/pi-coding-agent` **v0.87.1**.
 
 - **Skill Action & Guidance Visualizer:** Real-time visual tracking of active skills, loaded references, inspected files, and actions taken (inspired by \`pi-mcp-viz\`).
 - **Real-Time Instruction Auditor:** Live verification gates on every edit: Trailing Space Contract, lazy parameter expansion, current-value markers, `StringEnum`, `throw`-based errors, core packages in `peerDependencies`, listener cleanup, `ctx.mode === "tui"` guards, state reconciliation, manifest hygiene and install sources. Detection is comment-blind (a file that merely *mentions* `unsubscribe` no longer passes) and prefers `warn` over `fail` unless the skill states a hard rule.
-- **Self-Audit Doctor:** `/plugin-dev doctor` resolves the installed engine + docs at runtime, reads the changelog head, flags local-path installs (AGENTS §8), validates the shipped `SKILL.md` frontmatter and audits this package with its own rule set.
+- **Install Offer After Push:** when the agent commits and pushes a Pi package to GitHub, `/plugin-dev` offers to install it as a package (`git:github.com/<owner>/<repo>`, global or project scope) once the agent settles. Only Pi packages with a GitHub `origin` qualify, the commit must have happened in the same session, and packages already declared in `settings.json` are never offered. `/plugin-dev install on|off` controls it.
 - **Floating HUD Overlay:** High-contrast, non-blocking modal in the top-right corner (\`ctx.ui.custom\` overlay) showing live focus and compliance badges.
 - **Docked Editor Widget:** Compact above-editor status card showing active guidance and verified gates.
 - **Durable Transcript Cards:** Audit receipt appended to chat log on agent settlement.
@@ -31,6 +31,7 @@ Manage visualizer and compliance settings with `/plugin-dev`:
 | `/plugin-dev hud on\|off` | Toggle floating HUD overlay in top-right corner |
 | `/plugin-dev widget on\|off` | Toggle docked status widget above editor |
 | `/plugin-dev card on\|off` | Toggle durable audit summary cards in chat log |
+| `/plugin-dev install on\|off` | Offer to install a freshly pushed Pi plugin from GitHub (never from the local checkout) |
 | `/plugin-dev reset` | Clear current run history and loaded guidance trackers |
 | `/plugin-dev help` | Show command help banner |
 
@@ -74,7 +75,7 @@ pi-plugin-dev/
 
 ```bash
 npm run check   # tsc --noEmit
-npm test        # 60 tests, no terminal required
+npm test        # 72 tests, no terminal required
 ```
 
 The suite pins the auditor rules (including the two false results the first

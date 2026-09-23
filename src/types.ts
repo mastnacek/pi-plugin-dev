@@ -60,6 +60,8 @@ export interface PluginDevConfig {
 	transcriptCard: boolean;
 	statusline: boolean;
 	strictAudit: boolean;
+	/** After a successful commit+push of a Pi plugin, offer to install it from GitHub. */
+	installOffer: boolean;
 }
 
 export const DEFAULT_CONFIG: PluginDevConfig = {
@@ -69,4 +71,5 @@ export const DEFAULT_CONFIG: PluginDevConfig = {
 	transcriptCard: true,
 	statusline: true,
 	strictAudit: true,
+	installOffer: true,
 };
