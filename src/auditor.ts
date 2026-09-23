@@ -626,14 +626,16 @@ function checkStatePersistence(path: string, content: string): ComplianceCheck[]
 	];
 }
 
-/** Machine-absolute paths in docs break on the next machine or node upgrade. */
+/**
+ * Machine-absolute install paths in docs break on the next machine, node
+ * version or install root. A relative `node_modules/@earendil-works/...`
+ * reference is portable and deliberately not flagged.
+ */
 function checkDocsPortability(path: string, content: string): ComplianceCheck[] {
 	const looksLikeDoc = path.endsWith(".md") || path.endsWith(".mdx");
 	if (!looksLikeDoc) return [];
 	const hit =
-		/[A-Za-z]:\\\\?[^\s"'`)]*node_modules/.exec(content) ??
-		/node-v\d+\.\d+\.\d+-win/.exec(content) ??
-		/@earendil-works[\\/]pi-coding-agent[\\/]docs/.exec(content);
+		/[A-Za-z]:\\?[^\s"'`)]*node_modules/.exec(content) ?? /node-v\d+\.\d+\.\d+-win/.exec(content);
 	if (!hit) return [];
 	return [
 		createCheck({

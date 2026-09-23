@@ -65,15 +65,16 @@ pi-plugin-dev/
     ├── command-completions.md        # Trailing Space Contract & lazy completion engine
     ├── tools-and-schema.md           # TypeBox, StringEnum rule, tool execution contract
     ├── lifecycle-and-events.md       # Event lifecycle, 0.87.x boundary rules, unsubscribe cleanup
+    ├── event-and-api-surface.md      # Every event + ExtensionAPI method, with result contracts
     ├── state-persistence.md          # Branch-aware session state vs global config
-    └── api-docs-index.md             # Direct paths to local installed engine docs
+    └── api-docs-index.md             # Runtime-resolved engine docs index (no hardcoded paths)
 ```
 
 ## Testing
 
 ```bash
 npm run check   # tsc --noEmit
-npm test        # 58 tests, no terminal required
+npm test        # 60 tests, no terminal required
 ```
 
 The suite pins the auditor rules (including the two false results the first

@@ -232,6 +232,11 @@ test("docs: a machine-absolute engine path warns", () => {
 	assert.equal(check.status, "warn");
 });
 
+test("docs: a relative node_modules reference is portable", () => {
+	const code = "Read `node_modules/@earendil-works/pi-coding-agent/docs/extensions.md` from the install root.";
+	assert.deepEqual(checksFor("docs/guide.md", code, "docs-portability"), []);
+});
+
 test("docs: a portable reference raises nothing", () => {
 	const code = "Resolve the docs directory with `require.resolve('@earendil-works/pi-coding-agent')`.";
 	assert.deepEqual(checksFor("docs/guide.md", code, "docs-portability"), []);

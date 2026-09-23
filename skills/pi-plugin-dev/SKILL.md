@@ -14,6 +14,7 @@ Do not load full API references unless needed. Follow these fast rules, then rea
 - Command completions & Trailing Space Contract: `references/command-completions.md`
 - Custom tools, TypeBox & StringEnum: `references/tools-and-schema.md`
 - Lifecycle events & 0.87.x engine boundaries: `references/lifecycle-and-events.md`
+- Every event + `ExtensionAPI` method, with contracts: `references/event-and-api-surface.md`
 - State persistence (branch-aware vs global): `references/state-persistence.md`
 - Official local Pi docs & changelog: `references/api-docs-index.md`
 
@@ -25,6 +26,7 @@ Do not load full API references unless needed. Follow these fast rules, then rea
 - Use `"type": "module"`.
 - Core packages (`@earendil-works/pi-ai`, `@earendil-works/pi-agent-core`, `@earendil-works/pi-coding-agent`, `@earendil-works/pi-tui`, `typebox`) MUST be in `peerDependencies: { "*": "*" }`. Never bundle them in `dependencies`.
 - Third-party runtime libraries go into `dependencies` (Pi uses production installs, so `devDependencies` are absent at runtime).
+- Add a `pi` manifest (`extensions` / `skills` paths) and a `files` array so the package cannot publish the whole checkout, and ship a `test` script so the plugin proves it does something beyond compiling.
 
 ### 2. Custom Tools (`pi.registerTool`)
 - **String Enums:** Always use `StringEnum(["a", "b"] as const)` from `@earendil-works/pi-ai`. Never use `Type.Union`/`Type.Literal` (breaks Google Gemini API).
@@ -40,7 +42,9 @@ Do not load full API references unless needed. Follow these fast rules, then rea
 - **Lazy Parameter Completion (mandatory):** a non-terminal subcommand with enumerable parameters MUST return its child list as soon as the token is fully typed — not only after the trailing space. The engine closes the picker on Tab and forces file completion once a space exists, so the trailing-space form alone strands the user. Details and code: `references/command-completions.md`.
 
 ### 4. Lifecycle & Event Cleanliness
-- `pi.on(event, handler)` returns an unsubscribe function. Always store and call it during `session_shutdown` or process signals to prevent memory leaks and zombie listeners.
+- `pi.on(event, handler)` returns an unsubscribe function. Store every one and drain them in `session_shutdown` — that handler is the drainer itself, so it does not need to be stored. Full event + API surface: `references/event-and-api-surface.md`.
+- Never start processes, sockets, watchers or timers in the extension factory: some invocations load extensions without starting a session. Start long-lived resources from `session_start` and make `session_shutdown` idempotent (quit, reload, session replacement and exit all converge there).
+- Tool calls from one assistant message can run in parallel: never assume a sibling call's start event or result exists.
 - `turn_end` and `agent_before_settle` are actionable boundaries in 0.87.x (can inject structural entries).
 
 ### 5. State Persistence
@@ -48,10 +52,28 @@ Do not load full API references unless needed. Follow these fast rules, then rea
 - **TUI-only session state:** Append via `pi.appendEntry(customType, data)` and restore from `ctx.sessionManager.getEntries()`. Never enters LLM context.
 - **Global config:** Store in `~/.pi/agent/<plugin>.json`. Ensure directory exists before writing.
 
+### 6. Terminal-Only UI (`hasUI` is not enough)
+- `ctx.hasUI` is `true` in **RPC as well as TUI**. `ctx.ui.custom()` returns `undefined` in RPC and `ctx.ui.onTerminalInput()` is a no-op, so guard both with `ctx.mode === "tui"`.
+- `notify` / `setStatus` / `setWidget` and the dialog methods are fine behind `ctx.hasUI`; json and print modes have no UI at all, so keep tool and event behavior independent of rendering.
+
 ---
 
 ## Live Engine Documentation
 
-The installed engine docs are the ultimate source of truth:
-- Root: `D:\02_knihovny_path\node-v22.17.1-win-x64\node_modules\@earendil-works\pi-coding-agent\docs`
-- Changelog: `D:\02_knihovny_path\node-v22.17.1-win-x64\node_modules\@earendil-works\pi-coding-agent\CHANGELOG.md`
+The installed engine docs are the ultimate source of truth. Resolve them at
+runtime — never hardcode an install path (it changes with the node version,
+the machine and the store layout):
+
+```bash
+# Fastest: the doctor prints engine version, docs dir and changelog head.
+/plugin-dev doctor
+
+# Or resolve it by hand. require.resolve() is blocked here because the engine's
+# package.json has an exports map with no "." entry, so walk node_modules:
+node -e "const fs=require('node:fs'),p=require('node:path');for(let d=process.cwd();;d=p.dirname(d)){const c=p.join(d,'node_modules','@earendil-works','pi-coding-agent','package.json');if(fs.existsSync(c)){console.log(c);break}if(p.dirname(d)===d)break}"
+```
+
+- Docs directory: `<engine package root>/docs` — `extensions.md`, `tui.md`, `packages.md`, `skills.md`, `session-format.md`, `settings.md`, `custom-provider.md`, `rpc-extension-ui.md`, `environment-variables.md`.
+- Changelog: `<engine package root>/CHANGELOG.md`.
+- Pi may also export `PI_PACKAGE_DIR` pointing at the running package directory.
+- File-by-file topic index: `references/api-docs-index.md`.
