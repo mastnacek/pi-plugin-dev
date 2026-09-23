@@ -35,6 +35,8 @@ import {
 import { closeSkillHud, showSkillHud, updateSkillHud } from "./src/visuals/hud.js";
 import { clearSkillWidget, updateSkillWidget } from "./src/visuals/widget.js";
 
+const RUNTIME_ENTRY_TYPE = "pi-plugin-dev:runtime";
+
 const COMMAND_DOCS: Record<string, string> = {
 	status: "Zobrazit aktuální stav monitoringu a scorecard pravidel",
 	hud: "Přepnout plovoucí HUD overlay (on | off)",
@@ -60,6 +62,19 @@ export default function (pi: ExtensionAPI): void {
 		tracker.reset();
 		closeSkillHud();
 		clearSkillWidget(ctx);
+
+		// Restore runtime state from session entry (branch-aware, survives /tree & compact)
+		for (const entry of ctx.sessionManager.getEntries()) {
+			if (entry.type === "custom" && entry.customType === RUNTIME_ENTRY_TYPE) {
+				const data = entry.data as Partial<PluginDevConfig> | undefined;
+				if (data && typeof data.hud === "boolean") config.hud = data.hud;
+				if (data && typeof data.widget === "boolean") config.widget = data.widget;
+				if (data && typeof data.transcriptCard === "boolean") config.transcriptCard = data.transcriptCard;
+				if (data && typeof data.statusline === "boolean") config.statusline = data.statusline;
+				break; // Last one wins
+			}
+		}
+
 		if (ctx.hasUI && config.statusline) {
 			ctx.ui.setStatus("pi-plugin-dev", undefined);
 		}
@@ -146,7 +161,7 @@ export default function (pi: ExtensionAPI): void {
 	pi.on("session_shutdown", async () => {
 		closeSkillHud();
 	});
-	
+
 
 	// 3. Command: /plugin-dev
 	pi.registerCommand("plugin-dev", {
@@ -262,6 +277,7 @@ export default function (pi: ExtensionAPI): void {
 			if (sub === "hud") {
 				config.hud = val !== "off";
 				saveConfig(config);
+				pi.appendEntry(RUNTIME_ENTRY_TYPE, config);
 				if (!config.hud) closeSkillHud();
 				ctx.ui.notify(`Plovoucí HUD: ${config.hud ? "ZAPNUTO (ON)" : "VYPNUTO (OFF)"}`, "info");
 				return;
@@ -270,6 +286,7 @@ export default function (pi: ExtensionAPI): void {
 			if (sub === "widget") {
 				config.widget = val !== "off";
 				saveConfig(config);
+				pi.appendEntry(RUNTIME_ENTRY_TYPE, config);
 				if (!config.widget) clearSkillWidget(ctx);
 				ctx.ui.notify(`Dokovaný widget: ${config.widget ? "ZAPNUTO (ON)" : "VYPNUTO (OFF)"}`, "info");
 				return;
@@ -278,6 +295,7 @@ export default function (pi: ExtensionAPI): void {
 			if (sub === "card") {
 				config.transcriptCard = val !== "off";
 				saveConfig(config);
+				pi.appendEntry(RUNTIME_ENTRY_TYPE, config);
 				ctx.ui.notify(`Souhrnná karta do chatu: ${config.transcriptCard ? "ZAPNUTO (ON)" : "VYPNUTO (OFF)"}`, "info");
 				return;
 			}
