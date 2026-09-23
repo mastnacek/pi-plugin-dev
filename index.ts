@@ -23,7 +23,9 @@ import type {
 	ExtensionCommandContext,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
-import type { AutocompleteItem } from "@earendil-works/pi-tui";
+import { fileURLToPath } from "node:url";
+import { createCompletions } from "./src/completions.js";
+import { collectDoctorReport, formatDoctorReport } from "./src/doctor.js";
 import { loadConfig, saveConfig } from "./src/config.js";
 import { SkillTracker } from "./src/tracker.js";
 import type { PluginDevConfig, SkillExecutionState } from "./src/types.js";
@@ -55,30 +57,29 @@ export interface PublishedSkillState {
 	turnCount: number;
 }
 
-const COMMAND_DOCS: Record<string, string> = {
-	status: "Zobrazit aktuální stav monitoringu a scorecard pravidel",
-	hud: "Přepnout plovoucí HUD overlay (on | off)",
-	widget: "Přepnout dokovaný widget nad editorem (on | off)",
-	card: "Přepnout ukládání souhrnných karet do chatu (on | off)",
-	reset: "Vynulovat počítadla a načtené reference aktuálního běhu",
-	help: "Zobrazit podrobnou nápovědu k příkazu /plugin-dev",
-};
-
 export default function (pi: ExtensionAPI): void {
 	let config: PluginDevConfig = loadConfig();
 	const tracker = new SkillTracker();
 
+	/** Unsubscribers from every `pi.on()`; drained on session_shutdown. */
+	const unsubscribers: Array<() => void> = [];
+
 	/**
-	 * Current on/off value of a toggle subcommand — used to annotate the
-	 * autocomplete menu with the state that is actually in effect (see the
-	 * "Current-Value State Annotation" section of the pi-plugin-dev skill).
+	 * Retain a `pi.on()` return value so it can be released on shutdown.
+	 *
+	 * The result is typed `unknown` on purpose: older engine versions declared
+	 * `pi.on()` as `void`, so the value is only stored when it is callable.
 	 */
-	const toggleStateFor = (cmd: string): boolean | undefined => {
-		if (cmd === "hud") return config.hud;
-		if (cmd === "widget") return config.widget;
-		if (cmd === "card") return config.transcriptCard;
-		return undefined;
+	const track = (result: unknown): void => {
+		if (typeof result === "function") unsubscribers.push(result as () => void);
 	};
+
+	/**
+	 * `ctx.ui.custom()` and `ctx.ui.onTerminalInput()` need a real terminal:
+	 * in RPC mode `hasUI` is still true but `custom()` resolves to `undefined`
+	 * and `onTerminalInput()` is a no-op, so the HUD must not be attempted there.
+	 */
+	const canOverlay = (ctx: ExtensionContext): boolean => ctx.mode === "tui";
 
 	/**
 	 * Publish the tracker snapshot on the shared event bus so other extensions
@@ -126,7 +127,7 @@ export default function (pi: ExtensionAPI): void {
 	);
 
 	// 2. Lifecycle Listeners
-	pi.on("session_start", async (_event, ctx: ExtensionContext) => {
+	track(pi.on("session_start", async (_event, ctx: ExtensionContext) => {
 		config = loadConfig();
 		tracker.reset();
 		publishSkillState(tracker.getState());
@@ -148,13 +149,13 @@ export default function (pi: ExtensionAPI): void {
 		if (ctx.hasUI && config.statusline) {
 			ctx.ui.setStatus("pi-plugin-dev", undefined);
 		}
-	});
+	}));
 
-	pi.on("turn_start", async (_event, _ctx: ExtensionContext) => {
+	track(pi.on("turn_start", async (_event, _ctx: ExtensionContext) => {
 		tracker.startTurn();
-	});
+	}));
 
-	pi.on("tool_execution_start", async (event, ctx: ExtensionContext) => {
+	track(pi.on("tool_execution_start", async (event, ctx: ExtensionContext) => {
 		const params = (event.args && typeof event.args === "object")
 			? (event.args as Record<string, unknown>)
 			: {};
@@ -177,27 +178,27 @@ export default function (pi: ExtensionAPI): void {
 		}
 
 		// Update / Show Floating HUD
-		if (config.hud && (st.activeSkill || st.references.size > 0)) {
-			showSkillHud(ctx, st, { delayMs: config.hudDelayMs });
-		}
+			if (canOverlay(ctx) && config.hud && (st.activeSkill || st.references.size > 0)) {
+				showSkillHud(ctx, st, { delayMs: config.hudDelayMs });
+			}
 
 		// Update Above-Editor Widget
 		if (config.widget && (st.activeSkill || st.references.size > 0)) {
 			updateSkillWidget(ctx, st);
 		}
-	});
+	}));
 
-	pi.on("tool_execution_end", async (event, ctx: ExtensionContext) => {
+	track(pi.on("tool_execution_end", async (event, ctx: ExtensionContext) => {
 		tracker.onToolEnd(event.toolName);
 		const st = tracker.getState();
 		publishSkillState(st);
 
 		if (!ctx.hasUI) return;
-		if (config.hud) updateSkillHud(st);
+		if (canOverlay(ctx) && config.hud) updateSkillHud(st);
 		if (config.widget) updateSkillWidget(ctx, st);
-	});
+	}));
 
-	pi.on("turn_end", (_event, ctx: ExtensionContext) => {
+	track(pi.on("turn_end", (_event, ctx: ExtensionContext) => {
 		tracker.endTurn();
 
 		// Push the settled state into the visuals so the HUD's auto-dismiss
@@ -205,11 +206,11 @@ export default function (pi: ExtensionAPI): void {
 		const st = tracker.getState();
 		publishSkillState(st);
 		if (!ctx.hasUI) return;
-		if (config.hud) updateSkillHud(st);
+		if (canOverlay(ctx) && config.hud) updateSkillHud(st);
 		if (config.widget) updateSkillWidget(ctx, st);
-	});
+	}));
 
-	pi.on("agent_settled", async (_event, ctx: ExtensionContext) => {
+	track(pi.on("agent_settled", async (_event, ctx: ExtensionContext) => {
 		const st = tracker.getState();
 		publishSkillState(st);
 
@@ -237,7 +238,7 @@ export default function (pi: ExtensionAPI): void {
 				ctx.ui.setStatus("pi-plugin-dev", `🎯 ${st.activeSkill}${badge}`);
 			}
 		}
-	});
+	}));
 
 	pi.on("session_shutdown", async () => {
 		closeSkillHud();
@@ -246,68 +247,18 @@ export default function (pi: ExtensionAPI): void {
 		} catch {
 			// Non-fatal: the bus is optional.
 		}
+		// Release every listener so /reload and session replacement cannot
+		// accumulate duplicates (AGENTS §5, skill §4).
+		while (unsubscribers.length > 0) {
+			unsubscribers.pop()?.();
+		}
 	});
 
 
 	// 3. Command: /plugin-dev
 	pi.registerCommand("plugin-dev", {
 		description: "Ovládání vizualizéru a auditoru plnění pravidel skillů (HUD, widget, audit)",
-		getArgumentCompletions: (prefix: string): AutocompleteItem[] | null => {
-			const tokens = prefix.split(/\s+/).filter(Boolean);
-			const trailingSpace = /\s$/.test(prefix);
-			const normalizedPrefix = tokens.join(" ").toLowerCase();
-			const head = (tokens[0] ?? "").toLowerCase();
-			// Subcommands that take parameters, and whose parameters are enumerable.
-			const NON_TERMINAL = new Set(["hud", "widget", "card"]);
-
-			// 2nd-level parameters. A fully typed non-terminal token already expands:
-			// Tab closes the picker, so waiting for the trailing space would strand
-			// the user with no way back to the parameter list.
-			if (tokens.length > 1 || (trailingSpace && tokens.length === 1) || (tokens.length === 1 && NON_TERMINAL.has(head))) {
-				const cmd = head;
-
-				if (cmd === "hud" || cmd === "widget" || cmd === "card") {
-					const current = toggleStateFor(cmd);
-					const items = [
-						{
-							value: `${cmd} on`,
-							// `label` is display-only; `value` stays clean so it can be
-							// inserted verbatim into the editor (Trailing Space Contract).
-							label: current ? "on ✓" : "on",
-							description: `Zapnout ${cmd.toUpperCase()}${current ? " · ● AKTIVNÍ" : ""}`,
-						},
-						{
-							value: `${cmd} off`,
-							label: current ? "off" : "off ✓",
-							description: `Vypnout ${cmd.toUpperCase()}${current ? "" : " · ● AKTIVNÍ"}`,
-						},
-					];
-					const filtered = items.filter((i) => i.value.toLowerCase().startsWith(normalizedPrefix));
-					return filtered.length > 0 ? filtered : null;
-				}
-
-				return null;
-			}
-
-			// 1st-level subcommands with Trailing Space Contract
-			const typed = head;
-			const items: AutocompleteItem[] = [];
-
-			for (const [key, description] of Object.entries(COMMAND_DOCS)) {
-				if (key.toLowerCase().startsWith(typed)) {
-					const hasNext = NON_TERMINAL.has(key);
-					const flag = toggleStateFor(key);
-					const state = flag === undefined ? "" : flag ? " · ● ZAPNUTO" : " · ○ VYPNUTO";
-					items.push({
-						value: hasNext ? `${key} ` : key,
-						label: key,
-						description: `${description}${state}`,
-					});
-				}
-			}
-
-			return items.length > 0 ? items : null;
-		},
+		getArgumentCompletions: createCompletions(() => config),
 
 		handler: async (args: string, ctx: ExtensionCommandContext) => {
 			const tokens = args.trim().split(/\s+/).filter(Boolean);
@@ -323,6 +274,7 @@ export default function (pi: ExtensionAPI): void {
 					"",
 					"Příkazy:",
 					"  /plugin-dev status       — Zobrazit aktuální stav sledování a scorecard pravidel",
+				"  /plugin-dev doctor       — Engine, instalace, skill manifest, self-audit",
 					"  /plugin-dev hud on|off   — Plovoucí HUD overlay v pravém horním rohu",
 					"  /plugin-dev widget on|off— Dokovaný stavový widget nad editorem",
 					"  /plugin-dev card on|off  — Souhrnná karta auditu do chatu po dokončení",
@@ -358,6 +310,18 @@ export default function (pi: ExtensionAPI): void {
 				}
 
 				ctx.ui.notify(lines.join("\n"), "info");
+				return;
+			}
+
+			if (sub === "doctor") {
+				const root = fileURLToPath(new URL(".", import.meta.url));
+				let message: string;
+				try {
+					message = formatDoctorReport(collectDoctorReport(root));
+				} catch (error) {
+					message = `🩺 doctor selhal: ${error instanceof Error ? error.message : String(error)}`;
+				}
+				ctx.ui.notify(message, "info");
 				return;
 			}
 

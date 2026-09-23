@@ -11,7 +11,16 @@ export interface SkillLoadedReference {
 
 export interface ComplianceCheck {
 	id: string;
-	rule: "trailing-space" | "string-enum" | "error-throw" | "peer-deps" | "lifecycle-cleanup";
+	rule:
+		| "trailing-space"
+		| "string-enum"
+		| "error-throw"
+		| "peer-deps"
+		| "lifecycle-cleanup"
+		| "manifest-hygiene"
+		| "ui-mode-guard"
+		| "state-persistence"
+		| "docs-portability";
 	label: string;
 	status: ComplianceStatus;
 	details: string;

@@ -169,7 +169,12 @@ export class SkillTracker {
 
 			const newChecks = auditCodeContent(rawPath, codePayload, this.activeInvariants);
 			for (const chk of newChecks) {
-				const existingIdx = this.compliance.findIndex((c) => c.rule === chk.rule && c.targetFile === chk.targetFile);
+				// One row per (rule, label, file): several checks of the same rule can
+				// coexist (a marker fail next to a trailing-space pass), and keying on
+				// the rule alone would let the last one erase the failure.
+				const existingIdx = this.compliance.findIndex(
+					(c) => c.rule === chk.rule && c.label === chk.label && c.targetFile === chk.targetFile,
+				);
 				if (existingIdx >= 0) {
 					this.compliance[existingIdx] = chk;
 				} else {

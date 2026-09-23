@@ -224,6 +224,10 @@ export function showSkillHud(
 	state: SkillExecutionState,
 	options: { delayMs: number },
 ): void {
+	// The overlay needs a real terminal: in RPC mode `custom()` resolves to
+	// `undefined` and `onTerminalInput()` is a no-op while `hasUI` is still true.
+	if (ctx.mode !== "tui") return;
+
 	if (activeHud) {
 		activeHud.updateState(state);
 		return;

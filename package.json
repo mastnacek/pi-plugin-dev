@@ -1,6 +1,6 @@
 {
   "name": "pi-plugin-dev",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Agent skill for creating, editing, testing, and debugging Pi coding agent plugins, extensions, and skills with progressive context disclosure.",
   "type": "module",
   "license": "MIT",
@@ -30,6 +30,10 @@
     "README.md",
     "LICENSE"
   ],
+  "scripts": {
+    "check": "tsc --noEmit",
+    "test": "tsc -p tsconfig.test.json && node --test \"dist/test/*.test.js\""
+  },
   "pi": {
     "extensions": [
       "./index.ts"
