@@ -13,6 +13,7 @@ Verified against `@earendil-works/pi-coding-agent` **v0.87.1**.
 - **Durable Transcript Cards:** Audit receipt appended to chat log on agent settlement.
 - **Progressive Context Disclosure:** Lightweight entry point (\`SKILL.md\`) that loads detailed specifications only on demand, saving thousands of API tokens per session.
 - **The Trailing Space Contract:** Exact specification for slash command autocompletion chaining (\`item.value\` space vs non-space rules).
+- **Lazy Parameter Completion & Live State Markers:** A fully typed non-terminal token expands its parameters immediately, and settings rows carry \`✓\` + \` · ● AKTIVNÍ\` for the value actually in effect.
 - **Schema & TypeBox Rules:** Mandatory \`StringEnum\` patterns from \`@earendil-works/pi-ai\` (avoiding Google Gemini 400 Bad Request errors) and error reporting via \`throw\`.
 - **0.87.x Engine Boundaries:** Canonical \`SessionManager\` context, append-only edits, and actionable \`turn_end\` / \`agent_before_settle\` hooks.
 - **State Persistence Guide:** Branch-aware session state (\`details\` + \`getBranch()\`), hidden TUI entries, and global config.

@@ -256,10 +256,15 @@ export default function (pi: ExtensionAPI): void {
 			const tokens = prefix.split(/\s+/).filter(Boolean);
 			const trailingSpace = /\s$/.test(prefix);
 			const normalizedPrefix = tokens.join(" ").toLowerCase();
+			const head = (tokens[0] ?? "").toLowerCase();
+			// Subcommands that take parameters, and whose parameters are enumerable.
+			const NON_TERMINAL = new Set(["hud", "widget", "card"]);
 
-			// 2nd-level parameters
-			if (tokens.length > 1 || (trailingSpace && tokens.length === 1)) {
-				const cmd = tokens[0]?.toLowerCase();
+			// 2nd-level parameters. A fully typed non-terminal token already expands:
+			// Tab closes the picker, so waiting for the trailing space would strand
+			// the user with no way back to the parameter list.
+			if (tokens.length > 1 || (trailingSpace && tokens.length === 1) || (tokens.length === 1 && NON_TERMINAL.has(head))) {
+				const cmd = head;
 
 				if (cmd === "hud" || cmd === "widget" || cmd === "card") {
 					const current = toggleStateFor(cmd);
@@ -285,8 +290,7 @@ export default function (pi: ExtensionAPI): void {
 			}
 
 			// 1st-level subcommands with Trailing Space Contract
-			const typed = (tokens[0] ?? "").toLowerCase();
-			const NON_TERMINAL = new Set(["hud", "widget", "card"]);
+			const typed = head;
 			const items: AutocompleteItem[] = [];
 
 			for (const [key, description] of Object.entries(COMMAND_DOCS)) {

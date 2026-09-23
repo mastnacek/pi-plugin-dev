@@ -125,7 +125,7 @@ Known implementations to copy from:
 | `pi-sidebar` | `src/commands.ts` (`/sidebar mcp\|lsp\|extensions`, `preset`, `border`, `branding`, `tab`, `pane`) | same |
 | `pi-architecture-watcher` | `src/slices/settings/complete.ts` | `(nyní: <value>)` on keys and values |
 | `pi-prompt-translate-czk` | `index.ts` | ` · ● AKTIVNÍ` |
-| `pi-mcp-viz` | `src/command.ts` | `currently on` / `currently off` |
+| `pi-mcp-viz` | `src/command.ts` | `✓` + ` · ● AKTIVNÍ` on the active `variant` / `detail` / `server` row, `(nyní: <value>)` on parent rows |
 
 ---
 
