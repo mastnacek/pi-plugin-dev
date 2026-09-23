@@ -26,7 +26,7 @@ import type {
 import type { AutocompleteItem } from "@earendil-works/pi-tui";
 import { loadConfig, saveConfig } from "./src/config.js";
 import { SkillTracker } from "./src/tracker.js";
-import type { PluginDevConfig } from "./src/types.js";
+import type { PluginDevConfig, SkillExecutionState } from "./src/types.js";
 import {
 	renderSkillAuditEntry,
 	SKILL_AUDIT_ENTRY_TYPE,
@@ -36,6 +36,24 @@ import { closeSkillHud, showSkillHud, updateSkillHud } from "./src/visuals/hud.j
 import { clearSkillWidget, updateSkillWidget } from "./src/visuals/widget.js";
 
 const RUNTIME_ENTRY_TYPE = "pi-plugin-dev:runtime";
+
+/** Shared event-bus channel; consumed by other extensions (e.g. pi-sidebar). */
+export const SKILL_STATE_CHANNEL = "pi-plugin-dev:state";
+
+/** Flat, render-friendly projection of SkillExecutionState (Map/Set → arrays). */
+export interface PublishedSkillState {
+	live: boolean;
+	activeSkill?: string;
+	references: Array<{ name: string; summary: string }>;
+	actions: Array<{ type: string; target: string; summary: string; timestamp: number }>;
+	compliance: Array<{ rule: string; label: string; status: string; details: string }>;
+	inspectedCount: number;
+	modifiedCount: number;
+	startTime: number;
+	lastUpdateTime: number;
+	inTurn: boolean;
+	turnCount: number;
+}
 
 const COMMAND_DOCS: Record<string, string> = {
 	status: "Zobrazit aktuální stav monitoringu a scorecard pravidel",
@@ -50,6 +68,45 @@ export default function (pi: ExtensionAPI): void {
 	let config: PluginDevConfig = loadConfig();
 	const tracker = new SkillTracker();
 
+	/**
+	 * Publish the tracker snapshot on the shared event bus so other extensions
+	 * (pi-sidebar's Skills tab) can render the same numbers without duplicating
+	 * skill detection. Best-effort: telemetry must never break the agent loop.
+	 */
+	const publishSkillState = (st: SkillExecutionState): void => {
+		try {
+			const payload: PublishedSkillState = {
+				live: true,
+				activeSkill: st.activeSkill,
+				references: Array.from(st.references.values()).map((r) => ({
+					name: r.name,
+					summary: r.summary,
+				})),
+				actions: st.actions.slice(-8).map((a) => ({
+					type: a.type,
+					target: a.target,
+					summary: a.summary,
+					timestamp: a.timestamp,
+				})),
+				compliance: st.compliance.map((c) => ({
+					rule: c.rule,
+					label: c.label,
+					status: c.status,
+					details: c.details,
+				})),
+				inspectedCount: st.inspectedFiles.size,
+				modifiedCount: st.modifiedFiles.size,
+				startTime: st.startTime,
+				lastUpdateTime: st.lastUpdateTime,
+				inTurn: st.inTurn,
+				turnCount: st.turnCount,
+			};
+			pi.events.emit(SKILL_STATE_CHANNEL, payload);
+		} catch {
+			// Non-fatal: the bus is optional.
+		}
+	};
+
 	// 1. Durable Transcript Card Renderer
 	pi.registerEntryRenderer<SkillAuditPayload>(
 		SKILL_AUDIT_ENTRY_TYPE,
@@ -60,6 +117,7 @@ export default function (pi: ExtensionAPI): void {
 	pi.on("session_start", async (_event, ctx: ExtensionContext) => {
 		config = loadConfig();
 		tracker.reset();
+		publishSkillState(tracker.getState());
 		closeSkillHud();
 		clearSkillWidget(ctx);
 
@@ -91,6 +149,7 @@ export default function (pi: ExtensionAPI): void {
 
 		tracker.onToolStart(event.toolName, params);
 		const st = tracker.getState();
+		publishSkillState(st);
 
 		if (!ctx.hasUI) return;
 
@@ -119,6 +178,7 @@ export default function (pi: ExtensionAPI): void {
 	pi.on("tool_execution_end", async (event, ctx: ExtensionContext) => {
 		tracker.onToolEnd(event.toolName);
 		const st = tracker.getState();
+		publishSkillState(st);
 
 		if (!ctx.hasUI) return;
 		if (config.hud) updateSkillHud(st);
@@ -130,14 +190,16 @@ export default function (pi: ExtensionAPI): void {
 
 		// Push the settled state into the visuals so the HUD's auto-dismiss
 		// timer sees `inTurn: false` and can actually fire.
-		if (!ctx.hasUI) return;
 		const st = tracker.getState();
+		publishSkillState(st);
+		if (!ctx.hasUI) return;
 		if (config.hud) updateSkillHud(st);
 		if (config.widget) updateSkillWidget(ctx, ctx.ui.theme, st);
 	});
 
 	pi.on("agent_settled", async (_event, ctx: ExtensionContext) => {
 		const st = tracker.getState();
+		publishSkillState(st);
 
 		// If a skill was active and performed actions, record durable audit card
 		if (st.activeSkill && (st.references.size > 0 || st.compliance.length > 0)) {
@@ -167,6 +229,11 @@ export default function (pi: ExtensionAPI): void {
 
 	pi.on("session_shutdown", async () => {
 		closeSkillHud();
+		try {
+			pi.events.emit(SKILL_STATE_CHANNEL, { live: false });
+		} catch {
+			// Non-fatal: the bus is optional.
+		}
 	});
 
 
