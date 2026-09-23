@@ -36,6 +36,8 @@ Do not load full API references unless needed. Follow these fast rules, then rea
   - Non-terminal choices (have sub-parameters): append space (`value: `${subcmd} ``). Tab confirms and immediately offers next parameter level.
   - Terminal choices (final leaf options): no space (`value: `${subcmd}``). Tab confirms selection as final.
 - **Full Prefix Replacement:** `item.value` replaces the *entire* argument line after `/cmd `, so N-th level values must be prefixed with their parent path (`value: "preset fast"`, not `"fast"`), while `item.label` remains the leaf token (`fast`).
+- **Current-Value State Annotation (mandatory for settings menus):** an `on|off` / enum / preset menu must show the value actually in effect. Put `✓` in the active `item.label`, ` · ● AKTIVNÍ` in its `item.description`, and annotate the parent-level description too. Never put the marker in `item.value` (it is inserted verbatim), and never use ANSI — `description` already runs through `theme.description`. Details and reference implementation: `references/command-completions.md`.
+- **Lazy Parameter Completion (mandatory):** a non-terminal subcommand with enumerable parameters MUST return its child list as soon as the token is fully typed — not only after the trailing space. The engine closes the picker on Tab and forces file completion once a space exists, so the trailing-space form alone strands the user. Details and code: `references/command-completions.md`.
 
 ### 4. Lifecycle & Event Cleanliness
 - `pi.on(event, handler)` returns an unsubscribe function. Always store and call it during `session_shutdown` or process signals to prevent memory leaks and zombie listeners.
