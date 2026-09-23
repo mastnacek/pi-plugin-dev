@@ -4,7 +4,8 @@ import type { ExtensionContext, Theme } from "@earendil-works/pi-coding-agent";
 import type { SkillExecutionState } from "../types.js";
 
 const MIN_WIDTH = 48;
-const MAX_WIDTH = 78;
+/** Upper bound for the overlay itself; the box always tracks the real width. */
+const OVERLAY_WIDTH_PERCENT = "50%" as const;
 
 export interface HudOptions {
 	delayMs: number;
@@ -98,12 +99,16 @@ export class SkillHudCard implements Component {
 		return true;
 	}
 
-	render(width: number): string[] {
+		render(width: number): string[] {
 		if (this.cachedLines && this.cachedWidth === width) {
 			return this.cachedLines;
 		}
 
-		const totalWidth = Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, width - 2));
+		// The overlay is sized as a percentage of the terminal, so `width` already
+		// reflects how much room the user gave it. Follow it instead of clamping to
+		// a fixed card width — widening the terminal reveals complete references,
+		// focus text and gate details.
+		const totalWidth = Math.max(MIN_WIDTH, width - 2);
 		const lines = this.draw(totalWidth);
 		this.cachedWidth = width;
 		this.cachedLines = lines;
@@ -120,16 +125,24 @@ export class SkillHudCard implements Component {
 		const borderBot = `╚═${"═".repeat(innerWidth + 2)}═╝`;
 
 		const padRow = (content: string): string => {
-			const visLen = visibleWidth(content);
-			const spaceNeeded = Math.max(0, innerWidth - visLen);
-			return `${th.fg("accent", "║")} ${content}${" ".repeat(spaceNeeded)} ${th.fg("accent", "║")}`;
+			// Clip first so a long skill name / summary can never punch the box open.
+			const clipped =
+				visibleWidth(content) > innerWidth
+					? truncateToWidth(content, innerWidth, "…")
+					: content;
+			const spaceNeeded = Math.max(0, innerWidth - visibleWidth(clipped));
+			return `${th.fg("accent", "║")} ${clipped}${" ".repeat(spaceNeeded)} ${th.fg("accent", "║")}`;
 		};
 
 		lines.push(th.fg("accent", borderTop));
 
 		// 1. Header Row
 		const elapsedSec = ((Date.now() - this.state.startTime) / 1000).toFixed(1);
-		const skillName = this.state.activeSkill ?? "Generic Agent";
+		const skillName = truncateToWidth(
+			this.state.activeSkill ?? "Generic Agent",
+			Math.max(8, innerWidth - 28),
+			"…",
+		);
 		const leftHeader = `${th.fg("accent", "🎯 SKILL:")} ${th.fg("toolTitle", skillName)}`;
 		const rightHeader = th.fg("dim", `${this.state.references.size} refs · ${elapsedSec}s`);
 		const headerSpace = Math.max(1, innerWidth - visibleWidth(leftHeader) - visibleWidth(rightHeader));
@@ -164,7 +177,7 @@ export class SkillHudCard implements Component {
 			if (lastAction.type === "bash") icon = "🧪";
 			if (lastAction.type === "doc_consult") icon = "📚";
 
-			const targetStr = th.fg("text", truncateToWidth(lastAction.target, 32));
+			const targetStr = th.fg("text", lastAction.target);
 			const sumStr = th.fg("dim", `[${lastAction.summary}]`);
 			lines.push(padRow(`  ${icon} ${targetStr} ${sumStr}`));
 		} else {
@@ -186,7 +199,7 @@ export class SkillHudCard implements Component {
 							? th.fg("error", "[FAIL]")
 							: th.fg("warning", "[WARN]");
 				const ruleLabel = th.fg("text", chk.label);
-				const row = `  ${badge} ${ruleLabel}: ${th.fg("dim", truncateToWidth(chk.details, innerWidth - 28))}`;
+				const row = `  ${badge} ${ruleLabel}: ${th.fg("dim", chk.details)}`;
 				lines.push(padRow(row));
 			}
 		}
@@ -240,10 +253,11 @@ export function showSkillHud(
 				return card;
 			},
 			{
-				overlay: true,
+					overlay: true,
 				overlayOptions: {
 					anchor: "top-right",
-					width: MAX_WIDTH,
+					width: OVERLAY_WIDTH_PERCENT,
+					minWidth: MIN_WIDTH,
 					margin: 1,
 					nonCapturing: true,
 					visible: (termWidth: number) => termWidth >= 70,

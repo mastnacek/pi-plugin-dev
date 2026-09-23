@@ -69,6 +69,18 @@ export default function (pi: ExtensionAPI): void {
 	const tracker = new SkillTracker();
 
 	/**
+	 * Current on/off value of a toggle subcommand — used to annotate the
+	 * autocomplete menu with the state that is actually in effect (see the
+	 * "Current-Value State Annotation" section of the pi-plugin-dev skill).
+	 */
+	const toggleStateFor = (cmd: string): boolean | undefined => {
+		if (cmd === "hud") return config.hud;
+		if (cmd === "widget") return config.widget;
+		if (cmd === "card") return config.transcriptCard;
+		return undefined;
+	};
+
+	/**
 	 * Publish the tracker snapshot on the shared event bus so other extensions
 	 * (pi-sidebar's Skills tab) can render the same numbers without duplicating
 	 * skill detection. Best-effort: telemetry must never break the agent loop.
@@ -171,7 +183,7 @@ export default function (pi: ExtensionAPI): void {
 
 		// Update Above-Editor Widget
 		if (config.widget && (st.activeSkill || st.references.size > 0)) {
-			updateSkillWidget(ctx, ctx.ui.theme, st);
+			updateSkillWidget(ctx, st);
 		}
 	});
 
@@ -182,7 +194,7 @@ export default function (pi: ExtensionAPI): void {
 
 		if (!ctx.hasUI) return;
 		if (config.hud) updateSkillHud(st);
-		if (config.widget) updateSkillWidget(ctx, ctx.ui.theme, st);
+		if (config.widget) updateSkillWidget(ctx, st);
 	});
 
 	pi.on("turn_end", (_event, ctx: ExtensionContext) => {
@@ -194,7 +206,7 @@ export default function (pi: ExtensionAPI): void {
 		publishSkillState(st);
 		if (!ctx.hasUI) return;
 		if (config.hud) updateSkillHud(st);
-		if (config.widget) updateSkillWidget(ctx, ctx.ui.theme, st);
+		if (config.widget) updateSkillWidget(ctx, st);
 	});
 
 	pi.on("agent_settled", async (_event, ctx: ExtensionContext) => {
@@ -250,16 +262,19 @@ export default function (pi: ExtensionAPI): void {
 				const cmd = tokens[0]?.toLowerCase();
 
 				if (cmd === "hud" || cmd === "widget" || cmd === "card") {
+					const current = toggleStateFor(cmd);
 					const items = [
 						{
 							value: `${cmd} on`,
-							label: "on",
-							description: `Zapnout ${cmd.toUpperCase()}`,
+							// `label` is display-only; `value` stays clean so it can be
+							// inserted verbatim into the editor (Trailing Space Contract).
+							label: current ? "on ✓" : "on",
+							description: `Zapnout ${cmd.toUpperCase()}${current ? " · ● AKTIVNÍ" : ""}`,
 						},
 						{
 							value: `${cmd} off`,
-							label: "off",
-							description: `Vypnout ${cmd.toUpperCase()}`,
+							label: current ? "off" : "off ✓",
+							description: `Vypnout ${cmd.toUpperCase()}${current ? "" : " · ● AKTIVNÍ"}`,
 						},
 					];
 					const filtered = items.filter((i) => i.value.toLowerCase().startsWith(normalizedPrefix));
@@ -277,10 +292,12 @@ export default function (pi: ExtensionAPI): void {
 			for (const [key, description] of Object.entries(COMMAND_DOCS)) {
 				if (key.toLowerCase().startsWith(typed)) {
 					const hasNext = NON_TERMINAL.has(key);
+					const flag = toggleStateFor(key);
+					const state = flag === undefined ? "" : flag ? " · ● ZAPNUTO" : " · ○ VYPNUTO";
 					items.push({
 						value: hasNext ? `${key} ` : key,
 						label: key,
-						description,
+						description: `${description}${state}`,
 					});
 				}
 			}
