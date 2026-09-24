@@ -212,5 +212,24 @@ export function checkPackageManifest(path: string, content: string): ComplianceC
 		);
 	}
 
+	// Flat-architecture guard: logic files in the package root (config.ts, gate.ts, …)
+	// drift from the reference layout (thin index.ts + src/ modules, pi-plugin-dev).
+	if (Array.isArray(parsed.files)) {
+		const flatLogic = (parsed.files as unknown[]).filter(
+			(f) => typeof f === "string" && /^\w[\w-]*\.tsx?$/.test(f) && f !== "index.ts",
+		);
+		if (flatLogic.length > 0) {
+			checks.push(
+				createCheck({
+					rule: "manifest-hygiene",
+					label: "Package Layout Guard",
+					status: "fail",
+					details: `Logic files at package root: ${flatLogic.join(", ")}. Use the reference architecture: thin index.ts composition root + src/ modules (see pi-plugin-dev skill).`,
+					targetFile: path,
+				}),
+			);
+		}
+	}
+
 	return checks;
 }
