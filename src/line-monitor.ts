@@ -92,6 +92,17 @@ function isExemptPath(resolved: string): boolean {
 	return false;
 }
 
+/**
+ * True when the path is a monitored source file (allowlisted extension, not
+ * under an exempt directory). Used by the consult gates so docs and data
+ * stay ungated.
+ */
+export function isMonitoredSourcePath(resolvedPath: string): boolean {
+	const ext = path.extname(resolvedPath).toLowerCase();
+	if (!SOURCE_EXTENSIONS.has(ext)) return false;
+	return !isExemptPath(resolvedPath);
+}
+
 /** Counts physical lines; a single trailing newline does not create a line. */
 export function countLines(content: string): number {
 	if (content.length === 0) return 0;

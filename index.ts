@@ -30,6 +30,12 @@ import { collectDoctorReport, formatDoctorReport } from "./src/doctor.js";
 import { loadConfig, saveConfig } from "./src/config.js";
 import { checkFileLines, formatLineLimitCheck } from "./src/line-monitor.js";
 import {
+	buildMcpGateReason,
+	buildSkillGateReason,
+	isGatedEditTarget,
+	toolMatchesAny,
+} from "./src/source-gate.js";
+import {
 	findPluginCandidate,
 	installedRepoKeys,
 	isGitCommitCommand,
@@ -212,6 +218,42 @@ export default function (pi: ExtensionAPI): void {
 				"do NOT retry the same file unchanged — extract cohesive sections (classes, function groups, constants, types) " +
 				"into new modules in the same folder and import them, then re-run the edit.",
 		);
+		event.systemPromptOptions.promptGuidelines.push(
+			"CONSULT BEFORE EDIT (ENFORCED): edit/write calls on source code files are rejected until the required " +
+				"sources have been consulted this session — the relevant Pi skill entry point (SKILL.md) has been read, " +
+				"and, when configured, the required MCP tool(s) (e.g. kb_search) have been called. If an edit is rejected " +
+				"with 'SKILL BEFORE EDIT' or 'CONSULT BEFORE EDIT', perform the required consultation first, then retry.",
+		);
+	}));
+
+	/** MCP tool-name patterns satisfied this session (consult gate state). */
+	const satisfiedMcpTools = new Set<string>();
+
+	// 1c. Consult-before-edit gates — skill activation + required MCP tool calls
+	track(pi.on("tool_call", (event) => {
+		const rawName = event.toolName || "";
+		const required = config.requiredMcpToolsBeforeEdit ?? [];
+		if (required.length > 0 && toolMatchesAny(rawName, required)) {
+			// Record satisfaction before any early return below.
+			for (const pattern of required) {
+				if (toolMatchesAny(rawName, [pattern])) satisfiedMcpTools.add(pattern);
+			}
+		}
+
+		const baseToolName = rawName.includes("__") ? rawName.split("__").pop()! : rawName;
+		if (baseToolName !== "edit" && baseToolName !== "write") return;
+
+		const targetPath = (event.input as { path?: string } | undefined)?.path;
+		if (!targetPath) return;
+		if (!isGatedEditTarget(path.resolve(targetPath))) return;
+
+		if (config.enforceSkillBeforeEdit && !tracker.getState().activeSkill) {
+			return { block: true, reason: buildSkillGateReason(targetPath) };
+		}
+		const missing = required.filter((p) => !satisfiedMcpTools.has(p));
+		if (missing.length > 0) {
+			return { block: true, reason: buildMcpGateReason(missing) };
+		}
 	}));
 
 	track(pi.on("tool_result", (event) => {
@@ -240,6 +282,7 @@ export default function (pi: ExtensionAPI): void {
 	track(pi.on("session_start", async (_event, ctx: ExtensionContext) => {
 		config = loadConfig();
 		tracker.reset();
+		satisfiedMcpTools.clear();
 		publishSkillState(tracker.getState());
 		closeSkillHud();
 		clearSkillWidget(ctx);

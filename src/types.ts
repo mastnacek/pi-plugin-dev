@@ -66,6 +66,10 @@ export interface PluginDevConfig {
 	installOffer: boolean;
 	/** Hard per-file line limit for monitored source files (line-monitor.ts). */
 	maxFileLines: number;
+	/** HARD GATE: block source edits until a Pi skill entry point (SKILL.md) has been read this session. */
+	enforceSkillBeforeEdit: boolean;
+	/** HARD GATE: MCP tool-name patterns (e.g. "kb_search", "mcp__knowledge_base*") that must be called before source edits. Empty disables. */
+	requiredMcpToolsBeforeEdit: string[];
 }
 
 export const DEFAULT_CONFIG: PluginDevConfig = {
@@ -77,4 +81,6 @@ export const DEFAULT_CONFIG: PluginDevConfig = {
 	strictAudit: true,
 	installOffer: true,
 	maxFileLines: DEFAULT_MAX_FILE_LINES,
+	enforceSkillBeforeEdit: true,
+	requiredMcpToolsBeforeEdit: [],
 };

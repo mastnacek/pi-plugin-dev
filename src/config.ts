@@ -20,6 +20,10 @@ export function loadConfig(): PluginDevConfig {
 				maxFileLines: Number.isFinite(Number(parsed?.maxFileLines)) && Number(parsed?.maxFileLines) > 0
 					? Number(parsed?.maxFileLines)
 					: DEFAULT_CONFIG.maxFileLines,
+				enforceSkillBeforeEdit: Boolean(parsed?.enforceSkillBeforeEdit ?? DEFAULT_CONFIG.enforceSkillBeforeEdit),
+				requiredMcpToolsBeforeEdit: Array.isArray(parsed?.requiredMcpToolsBeforeEdit)
+					? (parsed.requiredMcpToolsBeforeEdit as unknown[]).filter((v): v is string => typeof v === "string")
+					: DEFAULT_CONFIG.requiredMcpToolsBeforeEdit,
 			};
 		}
 	} catch {
