@@ -23,6 +23,51 @@ export interface PackageJsonTemplateOptions {
 	dependencies?: Record<string, string>;
 }
 
+/**
+ * Scaffold the VSA folder skeleton for a new Pi plugin (see
+ * references/vsa-architecture.md in the skill): thin index.ts composition
+ * root, src/shared/ kernel, src/slices/<feature>/ with barrels.
+ */
+export function scaffoldVsaLayout(pluginRoot: string, sliceNames: string[] = []): string[] {
+	const path = require("node:path") as typeof import("node:path");
+	const fs = require("node:fs") as typeof import("node:fs");
+	const created: string[] = [];
+
+	const dirs = [
+		"src/shared",
+		"src/slices/pipeline",
+		"src/slices/tools",
+		"src/slices/commands",
+		"src/slices/settings",
+		...sliceNames.map((s) => `src/slices/${s}`),
+	];
+	for (const dir of dirs) {
+		fs.mkdirSync(path.join(pluginRoot, dir), { recursive: true });
+		created.push(dir);
+	}
+
+	const indexTs = `/**
+ * ${path.basename(pluginRoot)} — composition root.
+ *
+ * Composition root ONLY: creates the plugin state kernel and wires slices
+ * onto Pi events. No business logic lives here. Layout and slice-membership
+ * rules: pi-plugin-dev skill, references/vsa-architecture.md.
+ */
+
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+
+export default function pluginExtension(pi: ExtensionAPI): void {
+	// Create the shared state kernel (src/shared/state.ts), then:
+	// registerPipeline(pi, state); registerModelTools(pi, state);
+	// registerCommands(pi, state); and drain listeners on session_shutdown.
+}
+`;
+	fs.writeFileSync(path.join(pluginRoot, "index.ts"), indexTs, "utf8");
+	created.push("index.ts");
+
+	return created;
+}
+
 export function generatePackageJson(options: PackageJsonTemplateOptions): Record<string, unknown> {
 	const extensions = options.extensions ?? ["./index.ts"];
 	const files = Array.from(

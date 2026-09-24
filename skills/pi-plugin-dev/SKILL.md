@@ -16,6 +16,7 @@ Do not load full API references unless needed. Follow these fast rules, then rea
 - Lifecycle events & 0.87.x engine boundaries: `references/lifecycle-and-events.md`
 - Every event + `ExtensionAPI` method, with contracts: `references/event-and-api-surface.md`
 - State persistence (branch-aware vs global): `references/state-persistence.md`
+- **Vertical Slice Architecture (folder layout, slice membership decisions): `references/vsa-architecture.md`**
 - Official local Pi docs & changelog: `references/api-docs-index.md`
 
 ---
@@ -52,6 +53,11 @@ Do not load full API references unless needed. Follow these fast rules, then rea
 - **Conversation-linked state:** Store state in tool result `details` and restore on `session_start` from `ctx.sessionManager.getBranch()`. Survives `/tree` and branch switching.
 - **TUI-only session state:** Append via `pi.appendEntry(customType, data)` and restore from `ctx.sessionManager.getEntries()`. Never enters LLM context.
 - **Global config:** Store in `~/.pi/agent/<plugin>.json`. Ensure directory exists before writing.
+
+### 6. Vertical Slice Architecture (mandatory for plugins over ~300 lines)
+- Layout: thin `index.ts` composition root + `src/shared/` kernel + `src/slices/<feature>/` with `index.ts` barrels. Full layout, sizing rules and the slice-membership decision tree: `references/vsa-architecture.md`.
+- **Slices never import each other** — only via `src/shared/`. The composition root is the only multi-slice importer.
+- Split files by concept, never by line count; hard limit 400 lines per file.
 
 ### 6. Terminal-Only UI (`hasUI` is not enough)
 - `ctx.hasUI` is `true` in **RPC as well as TUI**. `ctx.ui.custom()` returns `undefined` in RPC and `ctx.ui.onTerminalInput()` is a no-op, so guard both with `ctx.mode === "tui"`.

@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "lastUpdated": "2026-09-24 19:40:41",
+  "records": [
+    {
+      "id": "SPAI-001",
+      "title": "Refactor non-compliant plugins to reference architecture (thin index.ts + src/ + tsconfig): pi-klid, pi-model-pricing, pi-projects, pi-prompt-translate-czk, pi-solodev-adr, pi-tts, pi-anonymizer, pi-architecture-watcher, pi-openrouter-accounts, pi-apple-rada, pi-at-words, pi-zen-fallback",
+      "type": "Todo",
+      "status": "todo",
+      "symbol": ".",
+      "timestamp": "2026-09-24 19:18:54",
+      "tags": [
+        "architecture"
+      ],
+      "project": "pi-plugin-dev",
+      "projectPath": "D:/01_programovani/pi/plugins/pi-plugin-dev",
+      "file": "2026-09-24-SPAI-001-refactor-non-compliant-plugins-to-reference-archit.md"
+    },
+    {
+      "id": "SPAI-002",
+      "title": "Add references/vsa-architecture.md to pi-plugin-dev skill (slice membership decision tree, template, per-slice CLAUDE.md convention) + scaffold VSA layout in manifest-template + slice-aware auditor check",
+      "type": "Todo",
+      "status": "todo",
+      "symbol": ".",
+      "timestamp": "2026-09-24 19:40:41",
+      "tags": [
+        "vsa"
+      ],
+      "project": "pi-plugin-dev",
+      "projectPath": "D:/01_programovani/pi/plugins/pi-plugin-dev",
+      "file": "2026-09-24-SPAI-002-add-referencesvsa-architecturemd-to-pi-plugin-dev-.md"
+    }
+  ]
+}
