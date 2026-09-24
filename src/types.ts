@@ -1,3 +1,5 @@
+import { DEFAULT_MAX_FILE_LINES } from "./line-monitor.js";
+
 export type ComplianceStatus = "pass" | "fail" | "warn";
 
 export interface SkillLoadedReference {
@@ -62,6 +64,8 @@ export interface PluginDevConfig {
 	strictAudit: boolean;
 	/** After a successful commit+push of a Pi plugin, offer to install it from GitHub. */
 	installOffer: boolean;
+	/** Hard per-file line limit for monitored source files (line-monitor.ts). */
+	maxFileLines: number;
 }
 
 export const DEFAULT_CONFIG: PluginDevConfig = {
@@ -72,4 +76,5 @@ export const DEFAULT_CONFIG: PluginDevConfig = {
 	statusline: true,
 	strictAudit: true,
 	installOffer: true,
+	maxFileLines: DEFAULT_MAX_FILE_LINES,
 };

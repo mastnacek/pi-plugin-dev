@@ -24,9 +24,11 @@ import type {
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import { fileURLToPath } from "node:url";
+import path from "node:path";
 import { createCompletions } from "./src/completions.js";
 import { collectDoctorReport, formatDoctorReport } from "./src/doctor.js";
 import { loadConfig, saveConfig } from "./src/config.js";
+import { checkFileLines, formatLineLimitCheck } from "./src/line-monitor.js";
 import {
 	findPluginCandidate,
 	installedRepoKeys,
@@ -200,6 +202,39 @@ export default function (pi: ExtensionAPI): void {
 		SKILL_AUDIT_ENTRY_TYPE,
 		(entry, { expanded }, theme) => renderSkillAuditEntry(entry.data, expanded, theme),
 	);
+
+	// 1b. Source file line limit — prompt guideline + edit/write rejection
+	track(pi.on("before_agent_start", (event) => {
+		if (!event.systemPromptOptions?.promptGuidelines) return;
+		event.systemPromptOptions.promptGuidelines.push(
+			`SOURCE FILE LENGTH LIMIT: Source code files (.ts, .js, .rs, .go, .py, …) must stay at or below ${config.maxFileLines} lines ` +
+				`(soft target ${Math.floor(config.maxFileLines * 0.75)}). If an edit or write is rejected with '[Line limit exceeded]', ` +
+				"do NOT retry the same file unchanged — extract cohesive sections (classes, function groups, constants, types) " +
+				"into new modules in the same folder and import them, then re-run the edit.",
+		);
+	}));
+
+	track(pi.on("tool_result", (event) => {
+		const rawName = event.toolName || "";
+		const baseToolName = rawName.includes("__") ? rawName.split("__").pop()! : rawName;
+		if (baseToolName !== "edit" && baseToolName !== "write") return;
+		if (event.isError) return;
+
+		const targetPath = (event.input as { path?: string } | undefined)?.path;
+		if (!targetPath) return;
+
+		const check = checkFileLines(path.resolve(targetPath), config.maxFileLines);
+		const notice = formatLineLimitCheck(check);
+		if (!notice) return;
+
+		if (check.level === "exceeded") {
+			return {
+				content: [...event.content, { type: "text", text: notice }],
+				isError: true,
+			};
+		}
+		return { content: [...event.content, { type: "text", text: notice }] };
+	}));
 
 	// 2. Lifecycle Listeners
 	track(pi.on("session_start", async (_event, ctx: ExtensionContext) => {

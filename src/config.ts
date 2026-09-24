@@ -17,6 +17,9 @@ export function loadConfig(): PluginDevConfig {
 				statusline: Boolean(parsed?.statusline ?? DEFAULT_CONFIG.statusline),
 				strictAudit: Boolean(parsed?.strictAudit ?? DEFAULT_CONFIG.strictAudit),
 				installOffer: Boolean(parsed?.installOffer ?? DEFAULT_CONFIG.installOffer),
+				maxFileLines: Number.isFinite(Number(parsed?.maxFileLines)) && Number(parsed?.maxFileLines) > 0
+					? Number(parsed?.maxFileLines)
+					: DEFAULT_CONFIG.maxFileLines,
 			};
 		}
 	} catch {
