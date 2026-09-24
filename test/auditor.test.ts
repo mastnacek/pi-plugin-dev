@@ -18,6 +18,7 @@ import {
 	stripComments,
 	stripLiterals,
 } from "../src/auditor.js";
+import { resolveImportPath, sliceOf } from "../src/slice-auditor.js";
 import type { ComplianceCheck } from "../src/types.js";
 
 function audit(path: string, content: string): ComplianceCheck[] {
@@ -340,4 +341,48 @@ test("ALL_INVARIANTS lists every rule the auditor can emit", () => {
 	]) {
 		assert.equal(ALL_INVARIANTS.has(rule), true, `missing ${rule}`);
 	}
+});
+
+// ------------------------------------------------------- slice isolation
+
+test("slice isolation: cross-slice import fails, shared and same-slice pass", () => {
+	// Violation: pipeline imports from the tools slice.
+	const violating = audit(
+		"src/slices/pipeline/index.ts",
+		'import { registerModelTools } from "../tools/index.js";\nexport {};',
+	);
+	const sliceFails = violating.filter((c) => c.rule === "slice-isolation");
+	assert.equal(sliceFails.length, 1, "cross-slice import must fail");
+	assert.match(sliceFails[0]?.details ?? "", /tools/);
+
+	// Legal: pipeline imports shared kernel + own-slice sibling.
+	const clean = audit(
+		"src/slices/pipeline/index.ts",
+		'import { createState } from "../../shared/state.js";\nimport { helper } from "./helper.js";\nexport {};',
+	);
+	assert.equal(clean.filter((c) => c.rule === "slice-isolation").length, 0);
+
+	// Non-slice files are never flagged.
+	const root = audit("index.ts", 'import { a } from "./src/slices/tools/index.js";\nexport {};');
+	assert.equal(root.filter((c) => c.rule === "slice-isolation").length, 0);
+});
+
+test("slice isolation: helpers resolve paths and slices correctly", () => {
+	assert.equal(sliceOf("src/slices/pipeline/index"), "pipeline");
+	assert.equal(sliceOf("src/slices/tools/compact-tool"), "tools");
+	assert.equal(sliceOf("src/shared/state"), undefined);
+	assert.equal(sliceOf("index"), undefined);
+
+	assert.equal(
+		resolveImportPath("src/slices/pipeline/index", "../tools/index.js"),
+		"src/slices/tools/index",
+	);
+	assert.equal(
+		resolveImportPath("src/slices/pipeline/tool-call", "./shared.js"),
+		"src/slices/pipeline/shared",
+	);
+});
+
+test("slice isolation: ALL_INVARIANTS includes slice-isolation", () => {
+	assert.equal(ALL_INVARIANTS.has("slice-isolation"), true);
 });

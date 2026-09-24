@@ -22,7 +22,8 @@ export interface ComplianceCheck {
 		| "manifest-hygiene"
 		| "ui-mode-guard"
 		| "state-persistence"
-		| "docs-portability";
+		| "docs-portability"
+		| "slice-isolation";
 	label: string;
 	status: ComplianceStatus;
 	details: string;

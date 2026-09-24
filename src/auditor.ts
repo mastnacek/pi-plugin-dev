@@ -16,6 +16,7 @@
 
 import type { ComplianceCheck } from "./types.js";
 import { checkPackageManifest, findLocalInstallSources } from "./manifest-auditor.js";
+import { checkSliceIsolation } from "./slice-auditor.js";
 import {
 	checkCommandCompletions,
 	checkErrorThrow,
@@ -40,7 +41,10 @@ export const ALL_INVARIANTS: ReadonlySet<string> = new Set<string>([
 	"ui-mode-guard",
 	"state-persistence",
 	"docs-portability",
+	"slice-isolation",
 ]);
+
+export { checkSliceIsolation } from "./slice-auditor.js";
 
 export {
 	findLocalInstallSources,
@@ -72,7 +76,21 @@ export function auditCodeContent(
 
 	if (!/\.(ts|js|mjs|cjs)$/.test(path)) return [];
 
+	// VSA slice isolation: slices never import each other (shared/ only).
+	// One fail row per offending import; clean slices raise nothing.
+	const crossSlice = checkSliceIsolation(path, content);
+	const sliceChecks: ComplianceCheck[] = crossSlice.map((f) => ({
+		id: `chk-${Date.now()}-slice-${f.targetSlice}-${Math.random().toString(36).slice(2, 8)}`,
+		rule: "slice-isolation" as const,
+		label: "Slice Isolation",
+		status: "fail" as const,
+		details: `Cross-slice import in ${f.file}: ${f.line} — reaches into slice '${f.targetSlice}'. Slices depend on src/shared/ only; the composition root is the only multi-slice importer (references/vsa-architecture.md).`,
+		targetFile: path,
+		timestamp: Date.now(),
+	}));
+
 	return [
+		...sliceChecks,
 		...checkCommandCompletions(path, content),
 		...checkStringEnum(path, content),
 		...checkErrorThrow(path, content),
