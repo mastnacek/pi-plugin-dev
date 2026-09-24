@@ -124,3 +124,15 @@ test("every documented subcommand is reachable from the first level", () => {
 		Object.keys(COMMAND_DOCS).sort(),
 	);
 });
+
+test("--global prefix preserves child completions", () => {
+	const items = complete("--global ");
+	assert.ok(items.length > 0);
+	assert.ok(items.some((i) => i.value === "--global hud "));
+	assert.ok(items.some((i) => i.value === "--global widget "));
+
+	const hudItems = complete("--global hud ");
+	assert.ok(hudItems.length > 0);
+	assert.ok(hudItems.some((i) => i.value === "--global hud on"));
+	assert.ok(hudItems.some((i) => i.value === "--global hud off"));
+});

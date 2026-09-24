@@ -19,6 +19,7 @@ import type { AutocompleteItem } from "@earendil-works/pi-tui";
 import type { PluginDevConfig } from "./types.js";
 
 export const COMMAND_DOCS: Record<string, string> = {
+	"--global": "Uložit následující nastavení globálně (~/.pi/agent/)",
 	status: "Zobrazit aktuální stav monitoringu a scorecard pravidel",
 	doctor: "Zkontrolovat engine, instalace, skill manifest a self-audit",
 	hud: "Přepnout plovoucí HUD overlay (on | off)",
@@ -30,7 +31,7 @@ export const COMMAND_DOCS: Record<string, string> = {
 };
 
 /** Subcommands that take parameters; their first-level row keeps the space. */
-export const NON_TERMINAL = new Set(["hud", "widget", "card", "install"]);
+export const NON_TERMINAL = new Set(["--global", "hud", "widget", "card", "install"]);
 
 /** Live on/off value of a toggle subcommand, or undefined for non-toggles. */
 export function toggleStateFor(config: PluginDevConfig, cmd: string): boolean | undefined {
@@ -41,57 +42,82 @@ export function toggleStateFor(config: PluginDevConfig, cmd: string): boolean | 
 	return undefined;
 }
 
+function completeClean(cleanPrefix: string, config: PluginDevConfig): AutocompleteItem[] | null {
+	const tokens = cleanPrefix.split(/\s+/).filter(Boolean);
+	const trailingSpace = /\s$/.test(cleanPrefix);
+	const normalizedPrefix = tokens.join(" ").toLowerCase();
+	const head = (tokens[0] ?? "").toLowerCase();
+
+	const atParameterLevel =
+		tokens.length > 1 ||
+		(trailingSpace && tokens.length === 1) ||
+		(tokens.length === 1 && NON_TERMINAL.has(head) && head !== "--global");
+
+	if (atParameterLevel) {
+		const current = toggleStateFor(config, head);
+		if (current === undefined) return null;
+
+		const items = [
+			{
+				value: `${head} on`,
+				label: current ? "on ✓" : "on",
+				description: `Zapnout ${head.toUpperCase()}${current ? " · ● AKTIVNÍ" : ""}`,
+			},
+			{
+				value: `${head} off`,
+				label: current ? "off" : "off ✓",
+				description: `Vypnout ${head.toUpperCase()}${current ? "" : " · ● AKTIVNÍ"}`,
+			},
+		];
+		const filtered = items.filter((item) => item.value.toLowerCase().startsWith(normalizedPrefix));
+		return filtered.length > 0 ? filtered : null;
+	}
+
+	const typed = head;
+	const items: AutocompleteItem[] = [];
+	for (const [key, description] of Object.entries(COMMAND_DOCS)) {
+		if (!key.toLowerCase().startsWith(typed)) continue;
+		const flag = toggleStateFor(config, key);
+		const state = flag === undefined ? "" : flag ? " · ● ZAPNUTO" : " · ○ VYPNUTO";
+		items.push({
+			value: NON_TERMINAL.has(key) ? `${key} ` : key,
+			label: key,
+			description: `${description}${state}`,
+		});
+	}
+	return items.length > 0 ? items : null;
+}
+
 /** Build the `getArgumentCompletions` function for `/plugin-dev`. */
 export function createCompletions(getConfig: () => PluginDevConfig) {
 	return (prefix: string): AutocompleteItem[] | null => {
-		const tokens = prefix.split(/\s+/).filter(Boolean);
-		const trailingSpace = /\s$/.test(prefix);
-		const normalizedPrefix = tokens.join(" ").toLowerCase();
-		const head = (tokens[0] ?? "").toLowerCase();
-		const config = getConfig();
+		const trimmed = prefix.trimStart();
 
-		// 2nd-level parameters. A fully typed non-terminal token already expands:
-		// Tab closes the picker, so waiting for the trailing space would strand the
-		// user with no way back to the parameter list.
-		const atParameterLevel =
-			tokens.length > 1 ||
-			(trailingSpace && tokens.length === 1) ||
-			(tokens.length === 1 && NON_TERMINAL.has(head));
-		if (atParameterLevel) {
-			const current = toggleStateFor(config, head);
-			if (current === undefined) return null;
+		// Support --global prefix
+		if (trimmed.startsWith("--global")) {
+			const afterGlobal = trimmed.slice(8).trimStart();
+			const hasTrailingSpace = trimmed.length > 8 || /\s$/.test(prefix);
 
-			const items = [
-				{
-					value: `${head} on`,
-					// `label` is display-only; `value` stays clean so it can be inserted
-					// verbatim into the editor (Trailing Space Contract).
-					label: current ? "on ✓" : "on",
-					description: `Zapnout ${head.toUpperCase()}${current ? " · ● AKTIVNÍ" : ""}`,
-				},
-				{
-					value: `${head} off`,
-					label: current ? "off" : "off ✓",
-					description: `Vypnout ${head.toUpperCase()}${current ? "" : " · ● AKTIVNÍ"}`,
-				},
-			];
-			const filtered = items.filter((item) => item.value.toLowerCase().startsWith(normalizedPrefix));
-			return filtered.length > 0 ? filtered : null;
+			if (!hasTrailingSpace && afterGlobal === "") {
+				return [{
+					value: "--global ",
+					label: "--global",
+					description: COMMAND_DOCS["--global"] ?? "Uložit globálně",
+				}];
+			}
+
+			const subCompletions = completeClean(afterGlobal, getConfig());
+			if (!subCompletions) return null;
+
+			return subCompletions
+				.filter((item) => item.label !== "--global")
+				.map((item) => ({
+					value: `--global ${item.value}`,
+					label: item.label,
+					description: item.description,
+				}));
 		}
 
-		// 1st-level subcommands with the Trailing Space Contract.
-		const typed = head;
-		const items: AutocompleteItem[] = [];
-		for (const [key, description] of Object.entries(COMMAND_DOCS)) {
-			if (!key.toLowerCase().startsWith(typed)) continue;
-			const flag = toggleStateFor(config, key);
-			const state = flag === undefined ? "" : flag ? " · ● ZAPNUTO" : " · ○ VYPNUTO";
-			items.push({
-				value: NON_TERMINAL.has(key) ? `${key} ` : key,
-				label: key,
-				description: `${description}${state}`,
-			});
-		}
-		return items.length > 0 ? items : null;
+		return completeClean(trimmed, getConfig());
 	};
 }
