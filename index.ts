@@ -282,8 +282,13 @@ export default function (pi: ExtensionAPI): void {
 
 		handler: async (args: string, ctx: ExtensionCommandContext) => {
 			const tokens = args.trim().split(/\s+/).filter(Boolean);
-			const sub = (tokens[0] ?? "").toLowerCase();
-			const val = (tokens[1] ?? "").toLowerCase();
+			// --global suffix on any setting subcommand persists user-wide
+			// (~/.pi/agent/pi-plugin-dev.json); without it the project
+			// override at <cwd>/.pi/pi-plugin-dev.json is written.
+			const isGlobal = tokens.some((t) => t.toLowerCase() === "--global");
+			const cleanTokens = tokens.filter((t) => t.toLowerCase() !== "--global");
+			const sub = (cleanTokens[0] ?? "").toLowerCase();
+			const val = (cleanTokens[1] ?? "").toLowerCase();
 
 			if (!sub || sub === "help" || sub === "-h" || sub === "--help") {
 				const help = [
@@ -356,7 +361,7 @@ export default function (pi: ExtensionAPI): void {
 
 			if (sub === "hud") {
 				config.hud = val !== "off";
-				saveConfig(config);
+				saveConfig(config, isGlobal, ctx.cwd);
 				pi.appendEntry(RUNTIME_ENTRY_TYPE, config);
 				if (!config.hud) closeSkillHud();
 				ctx.ui.notify(`Plovoucí HUD: ${config.hud ? "ZAPNUTO (ON)" : "VYPNUTO (OFF)"}`, "info");
@@ -365,7 +370,7 @@ export default function (pi: ExtensionAPI): void {
 
 			if (sub === "widget") {
 				config.widget = val !== "off";
-				saveConfig(config);
+				saveConfig(config, isGlobal, ctx.cwd);
 				pi.appendEntry(RUNTIME_ENTRY_TYPE, config);
 				if (!config.widget) clearSkillWidget(ctx);
 				ctx.ui.notify(`Dokovaný widget: ${config.widget ? "ZAPNUTO (ON)" : "VYPNUTO (OFF)"}`, "info");
@@ -374,7 +379,7 @@ export default function (pi: ExtensionAPI): void {
 
 			if (sub === "card") {
 				config.transcriptCard = val !== "off";
-				saveConfig(config);
+				saveConfig(config, isGlobal, ctx.cwd);
 				pi.appendEntry(RUNTIME_ENTRY_TYPE, config);
 				ctx.ui.notify(`Souhrnná karta do chatu: ${config.transcriptCard ? "ZAPNUTO (ON)" : "VYPNUTO (OFF)"}`, "info");
 				return;
@@ -382,7 +387,7 @@ export default function (pi: ExtensionAPI): void {
 
 			if (sub === "install") {
 				config.installOffer = val !== "off";
-				saveConfig(config);
+				saveConfig(config, isGlobal, ctx.cwd);
 				pi.appendEntry(RUNTIME_ENTRY_TYPE, config);
 				ctx.ui.notify(
 					`Nabídka instalace z GitHubu po commit+push: ${config.installOffer ? "ZAPNUTO (ON)" : "VYPNUTO (OFF)"}`,

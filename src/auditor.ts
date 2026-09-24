@@ -17,6 +17,7 @@
 import type { ComplianceCheck } from "./types.js";
 import { checkPackageManifest, findLocalInstallSources } from "./manifest-auditor.js";
 import { checkSliceIsolation } from "./slice-auditor.js";
+import { checkConfigCascade } from "./config-cascade-auditor.js";
 import {
 	checkCommandCompletions,
 	checkErrorThrow,
@@ -42,9 +43,11 @@ export const ALL_INVARIANTS: ReadonlySet<string> = new Set<string>([
 	"state-persistence",
 	"docs-portability",
 	"slice-isolation",
+	"config-cascade",
 ]);
 
 export { checkSliceIsolation } from "./slice-auditor.js";
+export { checkConfigCascade } from "./config-cascade-auditor.js";
 
 export {
 	findLocalInstallSources,
@@ -89,8 +92,23 @@ export function auditCodeContent(
 		timestamp: Date.now(),
 	}));
 
+	// Mandatory --global behavior contract: every setting-changing command
+	// accepts --global (persist ~/.pi/agent/<plugin>.json); config cascade
+	// global → project. Reference: pi-decision-gate.
+	const cascadeFindings = checkConfigCascade(path, content);
+	const cascadeChecks: ComplianceCheck[] = cascadeFindings.map((f) => ({
+		id: `chk-${Date.now()}-cascade-${Math.random().toString(36).slice(2, 8)}`,
+		rule: "config-cascade" as const,
+		label: "Global Config Cascade",
+		status: "fail" as const,
+		details: `${f.problem} ${f.hint}`,
+		targetFile: path,
+		timestamp: Date.now(),
+	}));
+
 	return [
 		...sliceChecks,
+		...cascadeChecks,
 		...checkCommandCompletions(path, content),
 		...checkStringEnum(path, content),
 		...checkErrorThrow(path, content),

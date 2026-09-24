@@ -23,7 +23,8 @@ export interface ComplianceCheck {
 		| "ui-mode-guard"
 		| "state-persistence"
 		| "docs-portability"
-		| "slice-isolation";
+		| "slice-isolation"
+		| "config-cascade";
 	label: string;
 	status: ComplianceStatus;
 	details: string;

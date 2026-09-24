@@ -19,6 +19,7 @@ import {
 	stripLiterals,
 } from "../src/auditor.js";
 import { resolveImportPath, sliceOf } from "../src/slice-auditor.js";
+import { checkConfigCascade } from "../src/config-cascade-auditor.js";
 import type { ComplianceCheck } from "../src/types.js";
 
 function audit(path: string, content: string): ComplianceCheck[] {
