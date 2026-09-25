@@ -1,7 +1,7 @@
 import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-import { collectDoctorReport, formatDoctorReport } from "./doctor.js";
+import { collectDoctorReport, formatDoctorReport, fetchLatestEngineVersion } from "./doctor.js";
 import { saveConfig } from "./config.js";
 import { scaffoldPlugin } from "./scaffold.js";
 import type { SkillTracker } from "./tracker.js";
@@ -105,7 +105,10 @@ export async function dispatchPluginDev(
 		const root = fileURLToPath(new URL(".", import.meta.url));
 		let message: string;
 		try {
-			message = formatDoctorReport(collectDoctorReport(root));
+			// The registry call is bounded by its own timeout and collapses to
+			// undefined offline, so doctor still reports everything else.
+			const latestEngineVersion = await fetchLatestEngineVersion();
+			message = formatDoctorReport(collectDoctorReport(root, { latestEngineVersion }));
 		} catch (error) {
 			message = `🩺 doctor selhal: ${error instanceof Error ? error.message : String(error)}`;
 		}

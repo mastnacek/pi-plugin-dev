@@ -13,12 +13,52 @@ Do not load full API references unless needed. Follow these fast rules, then rea
 
 - Command completions & Trailing Space Contract: `references/command-completions.md`
 - Custom tools, TypeBox & StringEnum: `references/tools-and-schema.md`
-- Lifecycle events & 0.87.x engine boundaries: `references/lifecycle-and-events.md`
+- Lifecycle events & engine boundaries (version-relative, re-derive after every upgrade): `references/lifecycle-and-events.md`
 - Every event + `ExtensionAPI` method, with contracts: `references/event-and-api-surface.md`
 - State persistence (branch-aware vs global): `references/state-persistence.md`
 - TUI components, width safety & subagent isolation: `references/tui-and-components.md`
 - **Vertical Slice Architecture (folder layout, slice membership decisions): `references/vsa-architecture.md`**
 - Official local Pi docs & changelog: `references/api-docs-index.md`
+
+---
+
+## 0. Pin to Latest (before anything else)
+
+**Never build against a version you merely assume is current.** Engine APIs move
+every few weeks, and a plugin written against a stale surface type-checks against
+a lie. Before the first edit of any plugin task:
+
+```bash
+# 1. What does npm publish as latest?
+npm view @earendil-works/pi-coding-agent version
+
+# 2. What is actually installed and what does this repo pin?
+node -e "console.log(require('@earendil-works/pi-coding-agent/package.json').version)"
+grep -rn "pi-coding-agent" package.json
+
+# 3. If the repo pin is behind, align it BEFORE writing code, then re-derive the
+#    surface you are about to use from the installed types.
+npm install
+```
+
+Three rules follow from this:
+
+- **The pin must equal `latest`, not a range you inherited.** A stale `^0.85.1`
+  in a workspace `devDependencies` silently type-checks every plugin in the
+  monorepo against a two-major-versions-old API while the runtime is newer. That
+  is not a lint nit: it produces code that compiles against types the running
+  engine does not have.
+- **Derive the surface from the installed `dist/`, not from memory or this file.**
+  Grep the event table before you rely on any event name or return contract:
+  ```bash
+  grep -n '    on(event:' <engine package root>/dist/core/extensions/types.d.ts
+  ```
+- **Re-read the changelog top for breaking changes** before trusting any event,
+  `SessionEntry` shape, or tool result contract. See `references/api-docs-index.md`.
+
+`/plugin-dev doctor` prints installed vs. latest and warns on a gap, so it is the
+fastest way to confirm you are current. Version claims in these skill files are
+examples, not authority — the installed package always wins.
 
 ---
 
@@ -48,7 +88,7 @@ Do not load full API references unless needed. Follow these fast rules, then rea
 - `pi.on(event, handler)` returns an unsubscribe function. Store every one and drain them in `session_shutdown` — that handler is the drainer itself, so it does not need to be stored. Full event + API surface: `references/event-and-api-surface.md`.
 - Never start processes, sockets, watchers or timers in the extension factory: some invocations load extensions without starting a session. Start long-lived resources from `session_start` and make `session_shutdown` idempotent (quit, reload, session replacement and exit all converge there).
 - Tool calls from one assistant message can run in parallel: never assume a sibling call's start event or result exists.
-- `turn_end` and `agent_before_settle` are actionable boundaries in 0.87.x (can inject structural entries).
+- `turn_end` and `agent_before_settle` are actionable boundaries in current 0.87.x: they can inject structural entries. Confirm against the installed `types.d.ts` after any upgrade.
 
 ### 5. State Persistence
 - **Conversation-linked state:** Store state in tool result `details` and restore on `session_start` from `ctx.sessionManager.getBranch()`. Survives `/tree` and branch switching.
@@ -82,10 +122,14 @@ Do not load full API references unless needed. Follow these fast rules, then rea
 
 The installed engine docs are the ultimate source of truth. Resolve them at
 runtime — never hardcode an install path (it changes with the node version,
-the machine and the store layout):
+the machine and the store layout). Confirm the version is `latest` first (§0):
 
 ```bash
-# Fastest: the doctor prints engine version, docs dir and changelog head.
+# What npm publishes right now — this is the version you must build against.
+npm view @earendil-works/pi-coding-agent version
+
+# Fastest: the doctor prints engine version, latest-on-npm, docs dir and
+# changelog head, and warns when the installed version lags.
 /plugin-dev doctor
 
 # Or resolve it by hand. require.resolve() is blocked here because the engine's

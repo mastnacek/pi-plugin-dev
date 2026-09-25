@@ -7,8 +7,15 @@ root at runtime; never paste an absolute path into a skill file.**
 ## Resolve the base paths
 
 ```bash
+# 0. FIRST: what does npm publish as latest? This is the version you build
+#    against (SKILL.md §0). If the repo pin lags, align it and reinstall BEFORE
+#    reading any types.
+npm view @earendil-works/pi-coding-agent version
+npm view @earendil-works/pi-coding-agent dist-tags --json   # 'latest' vs 'legacy-node20'
+
 # 1. Engine version
-/plugin-dev doctor          # prints version, docs dir and changelog head
+/plugin-dev doctor          # prints installed version, latest-on-npm, docs dir
+                            # and changelog head; warns when the pin lags
 # (the extension resolves it with createRequire + a node_modules walk-up, and
 # honours PI_PACKAGE_DIR when Pi pins its own package directory)
 
@@ -56,10 +63,14 @@ Skill-owned companions: `references/event-and-api-surface.md` (every event and
 
 Before writing or refactoring any plugin:
 
-1. Determine the installed engine version:
+1. Determine the installed engine version **and the latest published one**:
    ```bash
+   npm view @earendil-works/pi-coding-agent version
    /plugin-dev doctor
    ```
+   If the repo `devDependencies` pin is behind npm's `latest`, fix the pin and
+   `npm install` first. A stale pin type-checks every plugin in the workspace
+   against an older API than the one actually running.
 2. Read the top of the changelog for breaking changes affecting
    `ExtensionEvent`, `SessionEntry`, `ToolResultMessage` or `SessionManager`:
    ```bash
@@ -69,3 +80,6 @@ Before writing or refactoring any plugin:
    ```bash
    grep -n '    on(event:' <engine package root>/dist/core/extensions/types.d.ts
    ```
+   The event list, the result contract of each event, and the return type of
+   `pi.on()` all change between minors. Treat any event list in a skill file as
+   a hint and the installed `types.d.ts` as the contract.

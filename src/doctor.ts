@@ -17,6 +17,7 @@ import { createRequire } from "node:module";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { ALL_INVARIANTS, auditCodeContent, findLocalInstallSources } from "./auditor.js";
+import { checkEngineVersion } from "./engine-version.js";
 
 export type DoctorStatus = "pass" | "warn" | "fail" | "info";
 
@@ -35,6 +36,8 @@ export interface DoctorReport {
 export interface DoctorInput {
 	pluginRoot: string;
 	engineVersion?: string;
+	/** Newest version published on npm, when the registry was reachable. */
+	latestEngineVersion?: string;
 	engineDocsDir?: string;
 	changelogHead?: string[];
 	settingsPackages?: unknown;
@@ -65,6 +68,9 @@ export function checkSkillFrontmatter(markdown: string): { ok: boolean; details:
 	return { ok: false, details: `frontmatter missing: ${missing}` };
 }
 
+/** Compare two dotted versions. Returns <0, 0 or >0. Non-numeric parts sort as 0. */
+export { compareVersions, fetchLatestEngineVersion } from "./engine-version.js";
+
 /** Turn collected facts into the ordered report. Pure. */
 export function buildDoctorReport(input: DoctorInput): DoctorReport {
 	const items: DoctorItem[] = [];
@@ -74,6 +80,14 @@ export function buildDoctorReport(input: DoctorInput): DoctorReport {
 	} else {
 		items.push(item("Engine", "warn", "cannot resolve the installed pi-coding-agent package"));
 	}
+
+	// The pin-to-latest rule (SKILL.md §0) is only enforceable if the gap between
+	// what is installed and what npm publishes is visible at all.
+	const version = checkEngineVersion({
+		installed: input.engineVersion,
+		latest: input.latestEngineVersion,
+	});
+	items.push(item("Engine latest", version.status, version.details));
 
 	if (input.engineDocsDir && existsSync(input.engineDocsDir)) {
 		items.push(item("Engine docs", "pass", input.engineDocsDir));
@@ -299,7 +313,10 @@ function collectSourceFiles(root: string): Array<{ path: string; content: string
 }
 
 /** Read the facts from disk and build the report. */
-export function collectDoctorReport(pluginRoot: string): DoctorReport {
+export function collectDoctorReport(
+	pluginRoot: string,
+	options: { latestEngineVersion?: string } = {},
+): DoctorReport {
 	let engineVersion: string | undefined;
 	let engineDocsDir: string | undefined;
 	let changelogHead: string[] | undefined;
@@ -323,6 +340,7 @@ export function collectDoctorReport(pluginRoot: string): DoctorReport {
 	return buildDoctorReport({
 		pluginRoot,
 		engineVersion,
+		latestEngineVersion: options.latestEngineVersion,
 		engineDocsDir,
 		changelogHead,
 		settingsPackages: settings?.packages,
