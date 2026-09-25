@@ -8,6 +8,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import path from "node:path";
 import { checkFileLines, formatLineLimitCheck } from "../line-monitor.js";
+import { checkPreExecutionInvariants } from "../pre-execution-gate.js";
 import {
 	buildMcpGateReason,
 	buildSkillGateReason,
@@ -80,6 +81,28 @@ export function registerGuardHooks(
 		const missing = required.filter((p) => !satisfiedMcpTools.has(p));
 		if (missing.length > 0) {
 			return { block: true, reason: buildMcpGateReason(missing) };
+		}
+
+		// Inspect code / manifest before execution for fatal invariant violations
+		let codePayload = "";
+		const inputObj = event.input as Record<string, unknown> | undefined;
+		if (baseToolName === "write" && typeof inputObj?.content === "string") {
+			codePayload = inputObj.content;
+		} else if (baseToolName === "edit" && Array.isArray(inputObj?.edits)) {
+			codePayload = (inputObj.edits as Array<{ newText?: string }>)
+				.map((e) => e.newText ?? "")
+				.join("\n");
+		}
+
+		if (codePayload) {
+			const preCheck = checkPreExecutionInvariants(
+				path.resolve(targetPath),
+				codePayload,
+				config.strictAudit,
+			);
+			if (preCheck.block) {
+				return { block: true, reason: preCheck.reason };
+			}
 		}
 	}));
 

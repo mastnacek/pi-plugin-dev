@@ -20,6 +20,8 @@ import type { PluginDevConfig } from "./types.js";
 
 export const COMMAND_DOCS: Record<string, string> = {
 	"--global": "Uložit následující nastavení globálně (~/.pi/agent/)",
+	dashboard: "Otevřít interaktivní TUI dashboard (Scorecard, Invariants, Doctor)",
+	scaffold: "Vygenerovat novou compliant kostru Pi pluginu (VSA, TypeBox, peerDeps)",
 	status: "Zobrazit aktuální stav monitoringu a scorecard pravidel",
 	doctor: "Zkontrolovat engine, instalace, skill manifest a self-audit",
 	hud: "Přepnout plovoucí HUD overlay (on | off)",
@@ -31,7 +33,7 @@ export const COMMAND_DOCS: Record<string, string> = {
 };
 
 /** Subcommands that take parameters; their first-level row keeps the space. */
-export const NON_TERMINAL = new Set(["--global", "hud", "widget", "card", "install"]);
+export const NON_TERMINAL = new Set(["--global", "hud", "widget", "card", "install", "scaffold"]);
 
 /** Live on/off value of a toggle subcommand, or undefined for non-toggles. */
 export function toggleStateFor(config: PluginDevConfig, cmd: string): boolean | undefined {
@@ -54,6 +56,17 @@ function completeClean(cleanPrefix: string, config: PluginDevConfig): Autocomple
 		(tokens.length === 1 && NON_TERMINAL.has(head) && head !== "--global");
 
 	if (atParameterLevel) {
+		if (head === "scaffold") {
+			const arg = tokens[1] ?? "";
+			return [
+				{
+					value: `scaffold ${arg || "my-plugin"}`,
+					label: arg || "my-plugin",
+					description: "Název složky nového pluginu",
+				},
+			];
+		}
+
 		const current = toggleStateFor(config, head);
 		if (current === undefined) return null;
 

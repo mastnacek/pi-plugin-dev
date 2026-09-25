@@ -25,12 +25,13 @@ import type {
 	ExtensionCommandContext,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
-import { fileURLToPath } from "node:url";
 import { createCompletions } from "./src/completions.js";
-import { collectDoctorReport, formatDoctorReport } from "./src/doctor.js";
-import { loadConfig, saveConfig } from "./src/config.js";
+import { dispatchPluginDev } from "./src/dispatcher.js";
+import { loadConfig } from "./src/config.js";
 import { registerGuardHooks } from "./src/hooks/guard-hooks.js";
 import { createInstallOfferHook } from "./src/hooks/install-offer-hook.js";
+import { isDelegatedSession } from "./src/subagent-guard.js";
+import { registerScaffoldTool } from "./src/tool-scaffold.js";
 import { SkillTracker } from "./src/tracker.js";
 import type { PluginDevConfig, SkillExecutionState } from "./src/types.js";
 import {
@@ -43,7 +44,13 @@ import { clearSkillWidget, updateSkillWidget } from "./src/visuals/widget.js";
 import { publishSkillState, SKILL_STATE_CHANNEL } from "./src/skill-state.js";
 export * from "./src/skill-state.js";
 
-const RUNTIME_ENTRY_TYPE = "pi-plugin-dev:runtime";export default function (pi: ExtensionAPI): void {
+const RUNTIME_ENTRY_TYPE = "pi-plugin-dev:runtime";
+
+export default function (pi: ExtensionAPI): void {
+	if (isDelegatedSession()) {
+		return;
+	}
+
 	let config: PluginDevConfig = loadConfig();
 	const tracker = new SkillTracker();
 
@@ -216,128 +223,17 @@ const RUNTIME_ENTRY_TYPE = "pi-plugin-dev:runtime";export default function (pi: 
 		}
 	});
 
-	// 3. Command: /plugin-dev
+	// 3. Command: /plugin-dev (subcommands accept --global to persist to ~/.pi/agent/)
 	pi.registerCommand("plugin-dev", {
 		description: "Ovládání vizualizéru a auditoru plnění pravidel skillů (HUD, widget, audit)",
 		getArgumentCompletions: createCompletions(() => config),
-
 		handler: async (args: string, ctx: ExtensionCommandContext) => {
-			const tokens = args.trim().split(/\s+/).filter(Boolean);
-			// --global suffix on any setting subcommand persists user-wide
-			// (~/.pi/agent/pi-plugin-dev.json); without it the project
-			// override at <cwd>/.pi/pi-plugin-dev.json is written.
-			const isGlobal = tokens.some((t) => t.toLowerCase() === "--global");
-			const cleanTokens = tokens.filter((t) => t.toLowerCase() !== "--global");
-			const sub = (cleanTokens[0] ?? "").toLowerCase();
-			const val = (cleanTokens[1] ?? "").toLowerCase();
-
-			if (!sub || sub === "help" || sub === "-h" || sub === "--help") {
-				const help = [
-					"# /plugin-dev — Vizualizér & Auditor plnění skillů",
-					"",
-					"Sleduje kroky agenta řízeného skillem v reálném čase a audituje dodržování",
-					"architektonických pravidel (Trailing Space Contract, StringEnum, ErrorThrow).",
-					"",
-					"Příkazy:",
-					"  /plugin-dev status       — Zobrazit aktuální stav sledování a scorecard pravidel",
-					"  /plugin-dev doctor       — Engine, instalace, skill manifest, self-audit",
-					"  /plugin-dev hud on|off   — Plovoucí HUD overlay v pravém horním rohu",
-					"  /plugin-dev widget on|off— Dokovaný stavový widget nad editorem",
-					"  /plugin-dev card on|off  — Souhrnná karta auditu do chatu po dokončení",
-					"  /plugin-dev install on|off — Nabízet instalaci z GitHubu po commit+push",
-					"  /plugin-dev reset        — Vynulovat historii a načtené reference",
-					"  /plugin-dev help         — Tato nápověda",
-					"",
-					`Aktivní stav: HUD=${config.hud ? "ON" : "OFF"} | Widget=${config.widget ? "ON" : "OFF"} | Card=${config.transcriptCard ? "ON" : "OFF"} | Install=${config.installOffer ? "ON" : "OFF"}`,
-				].join("\n");
-				ctx.ui.notify(help, "info");
-				return;
-			}
-
-			if (sub === "status") {
-				const st = tracker.getState();
-				const passed = st.compliance.filter((c) => c.status === "pass").length;
-				const total = st.compliance.length;
-				const score = total > 0 ? `${passed}/${total} [${Math.round((passed / total) * 100)}%]` : "žádné kontroly neproběhly";
-
-				const lines = [
-					"🎯 [pi-plugin-dev — Auditní zpráva]",
-					`- Aktivní skill: ${st.activeSkill ?? "žádný"}`,
-					`- Načtené reference (${st.references.size}): ${Array.from(st.references.keys()).join(", ") || "žádné"}`,
-					`- Prohlédnuté soubory: ${st.inspectedFiles.size}`,
-					`- Modifikované soubory: ${st.modifiedFiles.size}`,
-					`- Skóre shody s pravidly: ${score}`,
-				];
-
-				if (st.compliance.length > 0) {
-					lines.push("", "Pravidla:");
-					for (const c of st.compliance) {
-						lines.push(`  ${c.status === "pass" ? "✓" : "✗"} [${c.rule}] ${c.label}: ${c.details}`);
-					}
-				}
-
-				ctx.ui.notify(lines.join("\n"), "info");
-				return;
-			}
-
-			if (sub === "doctor") {
-				const root = fileURLToPath(new URL(".", import.meta.url));
-				let message: string;
-				try {
-					message = formatDoctorReport(collectDoctorReport(root));
-				} catch (error) {
-					message = `🩺 doctor selhal: ${error instanceof Error ? error.message : String(error)}`;
-				}
-				ctx.ui.notify(message, "info");
-				return;
-			}
-
-			if (sub === "reset") {
-				tracker.reset();
-				closeSkillHud();
-				clearSkillWidget(ctx);
-				ctx.ui.notify("Stav sledování byl vynulován.", "info");
-				return;
-			}
-
-			if (sub === "hud") {
-				config.hud = val !== "off";
-				saveConfig(config, isGlobal, ctx.cwd);
-				pi.appendEntry(RUNTIME_ENTRY_TYPE, config);
-				if (!config.hud) closeSkillHud();
-				ctx.ui.notify(`Plovoucí HUD: ${config.hud ? "ZAPNUTO (ON)" : "VYPNUTO (OFF)"}`, "info");
-				return;
-			}
-
-			if (sub === "widget") {
-				config.widget = val !== "off";
-				saveConfig(config, isGlobal, ctx.cwd);
-				pi.appendEntry(RUNTIME_ENTRY_TYPE, config);
-				if (!config.widget) clearSkillWidget(ctx);
-				ctx.ui.notify(`Dokovaný widget: ${config.widget ? "ZAPNUTO (ON)" : "VYPNUTO (OFF)"}`, "info");
-				return;
-			}
-
-			if (sub === "card") {
-				config.transcriptCard = val !== "off";
-				saveConfig(config, isGlobal, ctx.cwd);
-				pi.appendEntry(RUNTIME_ENTRY_TYPE, config);
-				ctx.ui.notify(`Souhrnná karta do chatu: ${config.transcriptCard ? "ZAPNUTO (ON)" : "VYPNUTO (OFF)"}`, "info");
-				return;
-			}
-
-			if (sub === "install") {
-				config.installOffer = val !== "off";
-				saveConfig(config, isGlobal, ctx.cwd);
-				pi.appendEntry(RUNTIME_ENTRY_TYPE, config);
-				ctx.ui.notify(
-					`Nabídka instalace z GitHubu po commit+push: ${config.installOffer ? "ZAPNUTO (ON)" : "VYPNUTO (OFF)"}`,
-					"info",
-				);
-				return;
-			}
-
-			ctx.ui.notify(`Neznámý parametr "${sub}". Použijte: /plugin-dev help`, "warning");
+			await dispatchPluginDev(args, ctx, config, tracker, (updated) => {
+				pi.appendEntry(RUNTIME_ENTRY_TYPE, updated);
+			});
 		},
 	});
+
+	// 4. Scaffolding Tool
+	registerScaffoldTool(pi);
 }

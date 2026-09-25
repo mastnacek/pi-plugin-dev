@@ -16,6 +16,7 @@ Do not load full API references unless needed. Follow these fast rules, then rea
 - Lifecycle events & 0.87.x engine boundaries: `references/lifecycle-and-events.md`
 - Every event + `ExtensionAPI` method, with contracts: `references/event-and-api-surface.md`
 - State persistence (branch-aware vs global): `references/state-persistence.md`
+- TUI components, width safety & subagent isolation: `references/tui-and-components.md`
 - **Vertical Slice Architecture (folder layout, slice membership decisions): `references/vsa-architecture.md`**
 - Official local Pi docs & changelog: `references/api-docs-index.md`
 
@@ -59,9 +60,21 @@ Do not load full API references unless needed. Follow these fast rules, then rea
 - **Slices never import each other** — only via `src/shared/`. The composition root is the only multi-slice importer.
 - Split files by concept, never by line count; hard limit 400 lines per file.
 
-### 6. Terminal-Only UI (`hasUI` is not enough)
+### 7. Terminal-Only UI & Width Safety (`hasUI` is not enough)
 - `ctx.hasUI` is `true` in **RPC as well as TUI**. `ctx.ui.custom()` returns `undefined` in RPC and `ctx.ui.onTerminalInput()` is a no-op, so guard both with `ctx.mode === "tui"`.
-- `notify` / `setStatus` / `setWidget` and the dialog methods are fine behind `ctx.hasUI`; json and print modes have no UI at all, so keep tool and event behavior independent of rendering.
+- `notify` / `setStatus` / `setWidget` and dialog methods are fine behind `ctx.hasUI`; json and print modes have no UI at all, so keep tool and event behavior independent of rendering.
+- **TUI Width Safety:** `pi-tui` `TUI.doRender` hard-crashes if a rendered line exceeds terminal width. Always compute display width via `visibleWidth()` and clamp via `truncateToWidth()` (see `references/tui-and-components.md`).
+
+### 8. Subagent Recursion Guard
+- Subagent processes spawned by `pi-subagents` or child sessions load all global extensions.
+- Guard against hook recursion at the entry point of `index.ts`:
+  `if (process.env.PI_SUBAGENT === "true" || Boolean(process.env.PI_CHILD_SESSION)) return;`
+
+### 9. Scaffolding & Compliant Generation
+- Use `/plugin-dev scaffold <dir>` or tool `plugin_dev_scaffold` to generate 100% compliant starter skeletons adhering to VSA layout, peerDependencies isolation, TypeBox schemas, and tests.
+
+### 10. Interactive TUI Dashboard
+- Inspect live session scorecard, invariant compliance, resolved config cascade, and engine doctor via `/plugin-dev dashboard`.
 
 ---
 

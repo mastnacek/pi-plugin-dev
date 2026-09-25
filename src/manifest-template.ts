@@ -1,3 +1,6 @@
+import fs from "node:fs";
+import path from "node:path";
+
 /**
  * Standard package.json template for Pi coding agent packages.
  * Based on official engine documentation: docs/packages.md
@@ -29,8 +32,6 @@ export interface PackageJsonTemplateOptions {
  * root, src/shared/ kernel, src/slices/<feature>/ with barrels.
  */
 export function scaffoldVsaLayout(pluginRoot: string, sliceNames: string[] = []): string[] {
-	const path = require("node:path") as typeof import("node:path");
-	const fs = require("node:fs") as typeof import("node:fs");
 	const created: string[] = [];
 
 	const dirs = [
