@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "lastUpdated": "2026-09-24 19:40:41",
+  "lastUpdated": "2026-09-28 16:01:34",
   "records": [
     {
       "id": "SPAI-001",
@@ -29,6 +29,21 @@
       "project": "pi-plugin-dev",
       "projectPath": "D:/01_programovani/pi/plugins/pi-plugin-dev",
       "file": "2026-09-24-SPAI-002-add-referencesvsa-architecturemd-to-pi-plugin-dev-.md"
+    },
+    {
+      "id": "SPAI-003",
+      "title": "pi-plugin-dev 1.4.0: scaffold dává každému novému pluginu src/shared/i18n.ts (en+cs), klíč lang v kaskádě a podprikaz /<cmd> lang; nový invariant multilingual-ui selže na natvrdo psaném textu v notify/select/confirm/setStatus a v popisu registerCommand, ale pustí tool description (čte ho model) a šablony; žádné LANG/LC_ALL/Intl hádání, aby to fungovalo na Windows/Linux/macOS",
+      "type": "Note",
+      "status": "note",
+      "symbol": "-",
+      "timestamp": "2026-09-28 16:01:34",
+      "tags": [
+        "pi"
+      ],
+      "priority": "high",
+      "project": "pi-plugin-dev",
+      "projectPath": "D:/01_programovani/pi/plugins/pi-plugin-dev",
+      "file": "2026-09-28-SPAI-003-pi-plugin-dev-140-scaffold-dava-kazdemu-novemu-plu.md"
     }
   ]
 }
