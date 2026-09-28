@@ -18,6 +18,7 @@ Do not load full API references unless needed. Follow these fast rules, then rea
 - State persistence (branch-aware vs global): `references/state-persistence.md`
 - TUI components, width safety & subagent isolation: `references/tui-and-components.md`
 - **Vertical Slice Architecture (folder layout, slice membership decisions): `references/vsa-architecture.md`**
+- **Multilingual UI (user text from a string table, model text stays English): `references/multilingual-ui.md`**
 - Official local Pi docs & changelog: `references/api-docs-index.md`
 
 ---
@@ -113,8 +114,13 @@ examples, not authority — the installed package always wins.
 ### 9. Scaffolding & Compliant Generation
 - Use `/plugin-dev scaffold <dir>` or tool `plugin_dev_scaffold` to generate 100% compliant starter skeletons adhering to VSA layout, peerDependencies isolation, TypeBox schemas, and tests.
 
-### 10. Interactive TUI Dashboard
-- Inspect live session scorecard, invariant compliance, resolved config cascade, and engine doctor via `/plugin-dev dashboard`.
+### 10. Multilingual UI (mandatory for anything a user reads)
+- **Text the user reads comes from a string table** (`src/shared/i18n.ts`, `stringsFor(state.config.lang)`); **text the model reads stays English** — tool `description` and tool result text are instructions to the agent, not UI copy.
+- The scaffold already ships an `en` + `cs` table, a `lang` config key and a `/<command> lang` subcommand. Add a locale by adding a row; keep every key present in every locale.
+- Invariant `multilingual-ui` fails prose hardcoded into `notify` / `select` / `confirm` / `setStatus` text or a `registerCommand` description in a file that imports its table. Ids, levels and single tokens are warnings, not failures.
+- Never detect the locale from `LANG`/`LC_ALL`/`Intl` — absent on Windows, unreliable in containers. The persisted `lang` setting is the only source of truth. Details: `references/multilingual-ui.md`.
+
+### 11. Interactive TUI Dashboard
 
 ---
 

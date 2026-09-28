@@ -24,7 +24,8 @@ export interface ComplianceCheck {
 		| "state-persistence"
 		| "docs-portability"
 		| "slice-isolation"
-		| "config-cascade";
+		| "config-cascade"
+		| "multilingual-ui";
 	label: string;
 	status: ComplianceStatus;
 	details: string;

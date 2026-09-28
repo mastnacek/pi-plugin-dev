@@ -1,6 +1,11 @@
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
 import { generatePackageJson, scaffoldVsaLayout } from "./manifest-template.js";
+import {
+	i18nKernelSource,
+	i18nStarterTestSource,
+	localizedCommandsSource,
+} from "./i18n-template.js";
 
 export interface ScaffoldOptions {
 	targetDir: string;
@@ -102,14 +107,19 @@ export function scaffoldPlugin(options: ScaffoldOptions): ScaffoldResult {
  * Shared across slices; slices never import each other directly.
  */
 
+import { DEFAULT_LOCALE, type Locale } from "./i18n.js";
+
 export interface PluginState {
 	enabled: boolean;
+	/** UI language; every user-facing string resolves through the i18n table. */
+	lang: Locale;
 	lastRunTimestamp: number;
 }
 
 export function createInitialState(): PluginState {
 	return {
 		enabled: true,
+		lang: DEFAULT_LOCALE,
 		lastRunTimestamp: 0,
 	};
 }
@@ -117,30 +127,26 @@ export function createInitialState(): PluginState {
 	writeFileSync(join(targetDir, "src/shared/state.ts"), stateTs, "utf8");
 	createdFiles.push("src/shared/state.ts");
 
-	// 6. Slices barrels & starter code
-	const commandsIndex = `/**
- * Commands slice for ${name}.
- */
+	// 6. i18n kernel: src/shared/i18n.ts — every scaffolded plugin is cs + en
+	writeFileSync(join(targetDir, "src/shared/i18n.ts"), i18nKernelSource(name), "utf8");
+	createdFiles.push("src/shared/i18n.ts");
 
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import type { PluginState } from "../shared/state.js";
-
-export function registerCommands(pi: ExtensionAPI, state: PluginState): void {
-	pi.registerCommand("${name}", {
-		description: "${description}",
-		handler: async (_args, ctx) => {
-			if (ctx.hasUI) {
-				ctx.ui.notify("${name} is active (state.enabled = " + state.enabled + ")");
-			}
-		},
-	});
-}
-`;
-	writeFileSync(join(targetDir, "src/slices/commands/index.ts"), commandsIndex, "utf8");
+	// 7. Slices barrels & starter code
+	// Every user-facing string in the commands slice resolves through the table,
+	// so the generated plugin is Czech + English from the first commit.
+	writeFileSync(
+		join(targetDir, "src/slices/commands/index.ts"),
+		localizedCommandsSource(name, description),
+		"utf8",
+	);
 	createdFiles.push("src/slices/commands/index.ts");
 
+	// The tool slice keeps English descriptions on purpose: the agent is the reader.
 	const toolsIndex = `/**
  * Tools slice for ${name}.
+ *
+ * Model-facing text (description, result text) stays English in every locale —
+ * the agent is the one being instructed. The Multilingual UI invariant exempts it.
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
@@ -173,7 +179,7 @@ export function registerTools(pi: ExtensionAPI, state: PluginState): void {
 	writeFileSync(join(targetDir, "src/slices/tools/index.ts"), toolsIndex, "utf8");
 	createdFiles.push("src/slices/tools/index.ts");
 
-	// 7. index.ts composition root
+	// 8. index.ts composition root
 	const indexTs = `/**
  * ${name} — Pi coding agent extension.
  *
@@ -216,7 +222,7 @@ export default function (pi: ExtensionAPI): void {
 `;
 	writeFileSync(join(targetDir, "index.ts"), indexTs, "utf8");
 
-	// 8. Starter test
+	// 8. Starter tests: state kernel + the string table
 	mkdirSync(join(targetDir, "test"), { recursive: true });
 	const testTs = `import test from "node:test";
 import assert from "node:assert/strict";
@@ -225,11 +231,15 @@ import { createInitialState } from "../src/shared/state.js";
 test("state kernel initializes with defaults", () => {
 	const st = createInitialState();
 	assert.equal(st.enabled, true);
+	assert.equal(st.lang, "en", "English is the default locale; /${name} lang cs switches it");
 	assert.equal(typeof st.lastRunTimestamp, "number");
 });
 `;
 	writeFileSync(join(targetDir, "test/starter.test.ts"), testTs, "utf8");
 	createdFiles.push("test/starter.test.ts");
+
+	writeFileSync(join(targetDir, "test/i18n.test.ts"), i18nStarterTestSource(name), "utf8");
+	createdFiles.push("test/i18n.test.ts");
 
 	// 9. README.md
 	const readme = `# ${name}

@@ -18,6 +18,7 @@ import type { ComplianceCheck } from "./types.js";
 import { checkPackageManifest, findLocalInstallSources } from "./manifest-auditor.js";
 import { checkSliceIsolation } from "./slice-auditor.js";
 import { checkConfigCascade } from "./config-cascade-auditor.js";
+import { checkMultilingualUi } from "./i18n-auditor.js";
 import {
 	checkCommandCompletions,
 	checkErrorThrow,
@@ -44,6 +45,7 @@ export const ALL_INVARIANTS: ReadonlySet<string> = new Set<string>([
 	"docs-portability",
 	"slice-isolation",
 	"config-cascade",
+	"multilingual-ui",
 ]);
 
 export { checkSliceIsolation } from "./slice-auditor.js";
@@ -106,9 +108,23 @@ export function auditCodeContent(
 		timestamp: Date.now(),
 	}));
 
+	// Multilingual UI: text the user reads must come from the string table.
+	// Model-facing text (tool description, result text) is exempt by design.
+	const i18nFindings = checkMultilingualUi(path, content);
+	const i18nChecks: ComplianceCheck[] = i18nFindings.map((f) => ({
+		id: `chk-${Date.now()}-i18n-${f.sink}-${Math.random().toString(36).slice(2, 8)}`,
+		rule: "multilingual-ui" as const,
+		label: "Multilingual UI",
+		status: f.severity,
+		details: `Hardcoded user-facing text at ${f.file}:${f.line} — ${f.sink}("${f.literal}"). Route it through the string table: stringsFor(state.lang).… (references/multilingual-ui.md). Model-facing text stays English.`,
+		targetFile: path,
+		timestamp: Date.now(),
+	}));
+
 	return [
 		...sliceChecks,
 		...cascadeChecks,
+		...i18nChecks,
 		...checkCommandCompletions(path, content),
 		...checkStringEnum(path, content),
 		...checkErrorThrow(path, content),
