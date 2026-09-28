@@ -37,6 +37,61 @@ export function isGatedEditTarget(resolvedPath: string): boolean {
 	return isMonitoredSourcePath(resolvedPath);
 }
 
+/**
+ * How a mutating tool names its target file.
+ *
+ * `path` — the arguments carry a filesystem path, so every file-level gate
+ * (source check, line limit, pre-execution invariants) can run.
+ *
+ * `anchor` — the arguments carry an opaque anchor and no path. The editor
+ * resolves the anchor to a file inside its own registry, which this plugin has
+ * no access to, so only the session-level gates can be enforced.
+ *
+ * `null` — not a gated mutation tool.
+ */
+export type MutationTargeting = "path" | "anchor" | null;
+
+/** Arguments a mutating tool may name its target with. */
+export interface MutationInput {
+	/** Present on `edit`/`write` and on anchor editors configured to require a path. */
+	path?: unknown;
+	/** Editor arguments carry many more keys (anchor, lines, edits); only `path` matters here. */
+	[key: string]: unknown;
+}
+/**
+ * Classify a tool call as a gated mutation, and say how it names its target.
+ *
+ * This is the seam that keeps the gates from silently going blind when a new
+ * editor tool ships. `pi-hashline-edit-pro` registers `replace` and `insert`;
+ * a gate that only knows `edit`/`write` stops being a gate the moment the agent
+ * switches editors. Both names are configurable, so a fourth one is a config
+ * edit rather than a patch here.
+ */
+export function mutationTargeting(
+	rawName: string,
+	input: MutationInput,
+	cfg: { mutationTools: readonly string[]; pathlessTools: readonly string[] },
+): MutationTargeting {
+	if (!toolMatchesAny(rawName, cfg.mutationTools)) return null;
+	// An explicit path always wins: even an anchor-first tool can be told the file.
+	if (typeof input.path === "string" && input.path.trim().length > 0) return "path";
+	return toolMatchesAny(rawName, cfg.pathlessTools) ? "anchor" : "path";
+}
+
+/** Block reason for a mutation tool that does not expose its target file. */
+export function buildUnknownTargetGateReason(toolName: string, gate: string): string {
+	return [
+		`${gate}: '${baseToolName(toolName)}' changes a file but names it only by anchor, ` +
+		"which this plugin cannot resolve — the editor keeps its own registry.",
+		"Per project rules, the relevant Pi skill must be consulted first, so the session-level " +
+		"gate applies to this tool too.",
+		"Mandatory step: read the skill entry point with the 'read' tool — the file is named SKILL.md, " +
+		"e.g. '~/.pi/agent/skills/<skill-name>/SKILL.md' — then retry.",
+		'(Turn the anchor-only gate off with "enforcePathlessEditGate": false, or drop the tool ' +
+		'from "gatedPathlessTools", in \'~/.pi/agent/pi-plugin-dev.json\'.)',
+	].join(" ");
+}
+
 /** Block reason for the skill gate: no Pi skill has been activated this session. */
 export function buildSkillGateReason(filePath: string): string {
 	return [

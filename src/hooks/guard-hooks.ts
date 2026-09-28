@@ -12,7 +12,9 @@ import { checkPreExecutionInvariants } from "../pre-execution-gate.js";
 import {
 	buildMcpGateReason,
 	buildSkillGateReason,
+	buildUnknownTargetGateReason,
 	isGatedEditTarget,
+	mutationTargeting,
 	toolMatchesAny,
 } from "../source-gate.js";
 import type { SkillTracker } from "../tracker.js";
@@ -68,10 +70,29 @@ export function registerGuardHooks(
 			}
 		}
 
-		const baseToolName = rawName.includes("__") ? rawName.split("__").pop()! : rawName;
-		if (baseToolName !== "edit" && baseToolName !== "write") return;
+		const inputObj = (event.input ?? {}) as Record<string, unknown>;
+		const targeting = mutationTargeting(rawName, inputObj, {
+			mutationTools: config.gatedMutationTools,
+			pathlessTools: config.gatedPathlessTools,
+		});
+		if (!targeting) return;
 
-		const targetPath = (event.input as { path?: string } | undefined)?.path;
+		// Anchor-only tools: the file is unknown, so the file-level gates below have
+		// nothing to check. The session-level gates still apply, and the reason says so
+		// rather than pretending the target was inspected.
+		if (targeting === "anchor") {
+			if (!config.enforcePathlessEditGate) return;
+			if (config.enforceSkillBeforeEdit && !tracker.getState().activeSkill) {
+				return { block: true, reason: buildUnknownTargetGateReason(rawName, "SKILL BEFORE EDIT") };
+			}
+			const missingAnchor = required.filter((p) => !satisfiedMcpTools.has(p));
+			if (missingAnchor.length > 0) {
+				return { block: true, reason: buildUnknownTargetGateReason(rawName, "CONSULT BEFORE EDIT") };
+			}
+			return;
+		}
+
+		const targetPath = typeof inputObj.path === "string" ? inputObj.path : "";
 		if (!targetPath) return;
 		if (!isGatedEditTarget(path.resolve(targetPath))) return;
 
@@ -85,13 +106,20 @@ export function registerGuardHooks(
 
 		// Inspect code / manifest before execution for fatal invariant violations
 		let codePayload = "";
-		const inputObj = event.input as Record<string, unknown> | undefined;
-		if (baseToolName === "write" && typeof inputObj?.content === "string") {
+		// The editor tools carry their payload under their own argument names, so the
+		// invariant check reads all three shapes rather than just `write`/`edit`.
+		if (typeof inputObj?.content === "string") {
 			codePayload = inputObj.content;
-		} else if (baseToolName === "edit" && Array.isArray(inputObj?.edits)) {
+		} else if (Array.isArray(inputObj?.edits)) {
 			codePayload = (inputObj.edits as Array<{ newText?: string }>)
 				.map((e) => e.newText ?? "")
 				.join("\n");
+		} else if (Array.isArray(inputObj?.replacement_lines)) {
+			// `replace`: the lines that will land in the file.
+			codePayload = (inputObj.replacement_lines as unknown[]).join("\n");
+		} else if (Array.isArray(inputObj?.lines)) {
+			// `insert`: the lines that will land in the file.
+			codePayload = (inputObj.lines as unknown[]).join("\n");
 		}
 
 		if (codePayload) {
@@ -109,13 +137,23 @@ export function registerGuardHooks(
 	// Source file line limit — edit/write rejection
 	track(pi.on("tool_result", (event) => {
 		const rawName = event.toolName || "";
-		const baseToolName = rawName.includes("__") ? rawName.split("__").pop()! : rawName;
-		if (baseToolName !== "edit" && baseToolName !== "write") return;
 		if (event.isError) return;
+		// Same classifier as the call gate, so a tool covered there is covered here.
+		// The line limit needs the file itself, so an anchor-only result is skipped —
+		// the call gate already enforced what it could for those.
+		const config = getConfig();
+		const resultInput = (event.input ?? {}) as Record<string, unknown>;
+		if (
+			mutationTargeting(rawName, resultInput, {
+				mutationTools: config.gatedMutationTools,
+				pathlessTools: config.gatedPathlessTools,
+			}) !== "path"
+		) {
+			return;
+		}
 
-		const targetPath = (event.input as { path?: string } | undefined)?.path;
+		const targetPath = typeof resultInput.path === "string" ? resultInput.path : "";
 		if (!targetPath) return;
-
 		const check = checkFileLines(path.resolve(targetPath), getConfig().maxFileLines);
 		const notice = formatLineLimitCheck(check);
 		if (!notice) return;

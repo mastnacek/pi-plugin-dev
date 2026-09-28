@@ -28,6 +28,15 @@ function sanitize(parsed: unknown): PluginDevConfig {
 		requiredMcpToolsBeforeEdit: Array.isArray(p.requiredMcpToolsBeforeEdit)
 			? (p.requiredMcpToolsBeforeEdit as unknown[]).filter((v): v is string => typeof v === "string")
 			: DEFAULT_CONFIG.requiredMcpToolsBeforeEdit,
+		gatedMutationTools: Array.isArray(p.gatedMutationTools)
+			? (p.gatedMutationTools as unknown[]).filter((v): v is string => typeof v === "string" && v.length > 0)
+			: DEFAULT_CONFIG.gatedMutationTools,
+		gatedPathlessTools: Array.isArray(p.gatedPathlessTools)
+			? (p.gatedPathlessTools as unknown[]).filter((v): v is string => typeof v === "string" && v.length > 0)
+			: DEFAULT_CONFIG.gatedPathlessTools,
+		enforcePathlessEditGate: Boolean(
+			p.enforcePathlessEditGate ?? DEFAULT_CONFIG.enforcePathlessEditGate,
+		),
 	};
 }
 

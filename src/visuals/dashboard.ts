@@ -188,6 +188,12 @@ export class SkillDashboardModal implements Component {
 		pad(`  • Line Limit: max ${this.config.maxFileLines} lines/file`);
 		pad(`  • Enforce Skill Before Edit: ${this.config.enforceSkillBeforeEdit ? th.fg("success", "YES") : th.fg("dim", "NO")}`);
 		pad(`  • Required MCP Tools: ${this.config.requiredMcpToolsBeforeEdit.join(", ") || "(none)"}`);
+		pad(
+			`  • Gated Edit Tools: ${this.config.gatedMutationTools.join(", ")}` +
+				(this.config.gatedPathlessTools.length > 0
+					? ` (anchor-only: ${this.config.gatedPathlessTools.join(", ")})`
+					: ""),
+		);
 	}
 
 	private renderDoctor(pad: (s: string) => string, th: Theme): void {

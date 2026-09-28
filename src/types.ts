@@ -72,7 +72,14 @@ export interface PluginDevConfig {
 	/** HARD GATE: block source edits until a Pi skill entry point (SKILL.md) has been read this session. */
 	enforceSkillBeforeEdit: boolean;
 	/** HARD GATE: MCP tool-name patterns (e.g. "kb_search", "mcp__knowledge_base*") that must be called before source edits. Empty disables. */
+	/** HARD GATE: MCP tool-name patterns (e.g. "kb_search", "mcp__knowledge_base*") that must be called before source edits. Empty disables. */
 	requiredMcpToolsBeforeEdit: string[];
+	/** Every tool whose call mutates a file, whatever its payload shape. */
+	gatedMutationTools: string[];
+	/** Subset of the above that may omit `path` and name the file by anchor only. */
+	gatedPathlessTools: string[];
+	/** Apply the session-level gates to anchor-only mutation tools (file-level gates cannot run). */
+	enforcePathlessEditGate: boolean;
 }
 
 export const DEFAULT_CONFIG: PluginDevConfig = {
@@ -86,4 +93,7 @@ export const DEFAULT_CONFIG: PluginDevConfig = {
 	maxFileLines: DEFAULT_MAX_FILE_LINES,
 	enforceSkillBeforeEdit: true,
 	requiredMcpToolsBeforeEdit: [],
+	gatedMutationTools: ["edit", "write", "replace", "insert"],
+	gatedPathlessTools: ["insert"],
+	enforcePathlessEditGate: true,
 };
