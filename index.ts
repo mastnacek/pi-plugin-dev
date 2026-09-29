@@ -85,7 +85,10 @@ export default function (pi: ExtensionAPI): void {
 
 	// 2. Lifecycle Listeners
 	track(pi.on("session_start", async (_event, ctx: ExtensionContext) => {
-		config = loadConfig();
+		// `ctx.cwd` is mandatory: without it the project layer of the cascade
+		// (<cwd>/.pi/pi-plugin-dev.json) is never read, so a project override
+		// saved by /plugin-dev is silently ignored on the next session.
+		config = loadConfig(ctx.cwd);
 		tracker.reset();
 		guardHooks.reset();
 		publishSkillState(pi, tracker.getState());
