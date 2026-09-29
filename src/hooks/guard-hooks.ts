@@ -7,7 +7,7 @@
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import path from "node:path";
-import { checkFileLines, formatLineLimitCheck } from "../line-monitor.js";
+import { checkFileLines, formatLineLimitBlock, formatLineLimitCheck, projectResultingLines } from "../line-monitor.js";
 import { checkPreExecutionInvariants } from "../pre-execution-gate.js";
 import {
 	buildMcpGateReason,
@@ -131,6 +131,22 @@ export function registerGuardHooks(
 			if (preCheck.block) {
 				return { block: true, reason: preCheck.reason };
 			}
+		}
+
+		// Line limit, enforced BEFORE the mutation. The tool_result check cannot do
+		// this job: the file is already written when it runs, so an `isError: true`
+		// there describes a mutation that happened anyway and leaves the oversized
+		// file on disk. Projecting the result up front is the only point where the
+		// call can still be refused.
+		const projection = projectResultingLines(
+			path.resolve(targetPath),
+			rawName,
+			inputObj,
+			config.maxFileLines,
+		);
+		const limitReason = formatLineLimitBlock(projection, targetPath);
+		if (limitReason) {
+			return { block: true, reason: limitReason };
 		}
 	}));
 

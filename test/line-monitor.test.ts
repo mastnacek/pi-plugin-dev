@@ -9,7 +9,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
-import { checkFileLines, countLines, formatLineLimitCheck } from "../src/line-monitor.js";
+import { checkFileLines, countLines, formatLineLimitCheck, formatLineLimitBlock, projectResultingLines } from "../src/line-monitor.js";
 
 function tmpFile(name: string, lines: number, content?: string): string {
 	const dir = fs.mkdtempSync(path.join(os.tmpdir(), "line-monitor-"));
@@ -65,4 +65,60 @@ test("files under node_modules or dist are exempt", () => {
 	fs.writeFileSync(filePath, "a\n".repeat(900), "utf8");
 	const check = checkFileLines(filePath, 400);
 	assert.equal(check.checked, false);
+});
+
+test("projectResultingLines projects a write exactly", () => {
+	const target = path.join(os.tmpdir(), "projected.ts");
+	const p = projectResultingLines(target, "write", { content: "a\nb\nc\n" }, 400);
+	assert.equal(p.known, true);
+	assert.equal(p.lines, 3);
+	assert.equal(p.level, "ok");
+	assert.equal(formatLineLimitBlock(p, target), null);
+});
+
+test("projectResultingLines applies edit[] to the file on disk", () => {
+	const filePath = tmpFile("edit-me.ts", 390);
+	const p = projectResultingLines(
+		filePath,
+		"edit",
+		{ edits: [{ oldText: "line 0", newText: "line 0\nline x" }] },
+		400,
+	);
+	assert.equal(p.known, true);
+	assert.equal(p.lines, 391);
+	assert.equal(p.level, "warn");
+});
+
+test("projectResultingLines reports exceeded for a projected oversize", () => {
+	const target = path.join(os.tmpdir(), "projected-big.ts");
+	const p = projectResultingLines(target, "write", { content: "x\n".repeat(450) }, 400);
+	assert.equal(p.level, "exceeded");
+	const reason = formatLineLimitBlock(p, target);
+	assert.ok(reason?.includes("Line limit exceeded: 450 lines, limit 400"));
+	assert.ok(reason?.includes("REFUSED BEFORE IT RAN"));
+});
+
+test("projectResultingLines refuses to guess for an anchor-only tool", () => {
+	const target = path.join(os.tmpdir(), "anchor.ts");
+	const p = projectResultingLines(target, "insert", { anchor: "a1", lines: "x\n".repeat(900) }, 400);
+	assert.equal(p.known, false);
+	assert.equal(formatLineLimitBlock(p, target), null);
+});
+
+test("projectResultingLines is unknown for an edit of a missing file", () => {
+	const target = path.join(os.tmpdir(), "does-not-exist.ts");
+	const p = projectResultingLines(target, "edit", { edits: [{ oldText: "a", newText: "b" }] }, 400);
+	assert.equal(p.known, false);
+});
+
+test("projectResultingLines skips non-source and exempt targets", () => {
+	const md = projectResultingLines(path.join(os.tmpdir(), "a.md"), "write", { content: "x\n".repeat(900) }, 400);
+	assert.equal(md.known, false);
+	const dep = projectResultingLines(
+		path.join(os.tmpdir(), "node_modules", "dep.ts"),
+		"write",
+		{ content: "x\n".repeat(900) },
+		400,
+	);
+	assert.equal(dep.known, false);
 });

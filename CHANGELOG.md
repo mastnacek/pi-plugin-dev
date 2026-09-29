@@ -1,5 +1,33 @@
 # Changelog
 
+## 1.6.0 — the line limit is enforced before the write, not after it
+
+- `line-monitor.ts`: `projectResultingLines(resolvedPath, toolName, input, maxLines)`
+  projects the line count a call WILL leave behind — `write` from `content`,
+  `edit` by applying `edits[]` to the file on disk. An anchor-only editor
+  returns `known: false` instead of a guess.
+- `line-monitor.ts`: `formatLineLimitBlock()` renders the pre-flight rejection,
+  with its own wording ("REFUSED BEFORE IT RAN") so the agent does not go
+  looking for a mutation that never executed.
+- `guard-hooks.ts`: the `tool_call` handler now blocks an over-limit
+  `write`/`edit` after the invariant check.
+- `test/guard-hooks.test.ts`: new — 10 tests over the handlers end to end.
+  There was no test for this wiring at all before.
+
+### Why
+
+The line limit lived on `tool_result`, which the engine fires *after* the tool
+has already written the file. The handler returned `isError: true` with the
+split instructions, so an edit that pushed a file to 500 lines reported itself as
+a failure while the 500-line file stayed on disk. Verified live: a one-line edit
+to a 500-line file returned `🚨 [Line limit exceeded: 500 lines, limit 400]`, and
+`wc -l` still reported 500 with the edit applied. Every retry produced the same
+error and the file never shrank — the rule looked enforced while enforcing
+nothing.
+
+The consult gates were fine. `tool_call` runs before execution, so
+`block: true` there really does stop the call.
+
 ## 1.5.0 — the gates cover the editor that is actually installed
 
 - `source-gate.ts`: `mutationTargeting()` classifies a tool call as a gated
