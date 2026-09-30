@@ -38,6 +38,9 @@ Base paths, once the package root is known:
 | Topic | File in `<engine package root>/docs/` |
 |---|---|
 | Extensions, tools, events, commands, UI context | `extensions.md` |
+| Tool exposure, `outputSchema`, nested `ctx.executeTool()` | `extensions.md` §Tool exposure |
+| MCP servers (stdio / streamable HTTP, OAuth) | `mcp.md` |
+| Virtual models (per-request physical model routing) | `virtual-models.md` |
 | Agent Skills specification & discovery | `skills.md` |
 | TUI components, focus, overlays, themes | `tui.md` |
 | Packages, `pi` manifest, distribution | `packages.md` |

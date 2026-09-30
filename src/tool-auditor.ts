@@ -149,22 +149,60 @@ export function checkStringEnum(path: string, content: string): ComplianceCheck[
 	return [];
 }
 
+/**
+ * Return the balanced `{...}` object literal that follows a `return`.
+ *
+ * A regex with `[^}]*` cannot do this job: the documented 0.99 idiom
+ * `return { content, details: { query: q }, isError: true }` nests an object, so
+ * the scan dies at the inner `}` and never reaches `isError` — the check was
+ * simultaneously firing on code the engine accepts and staying silent on the
+ * shape we document. Brace counting with string literals skipped is the
+ * smallest thing that reads the whole literal.
+ */
+function returnedObject(code: string): string | undefined {
+	const start = code.indexOf("return {");
+	if (start === -1) return undefined;
+	const from = start + "return".length;
+	let depth = 0;
+	for (let i = from; i < code.length; i += 1) {
+		const ch = code[i];
+		if (ch === '"' || ch === "'" || ch === "`") {
+			i += 1;
+			while (i < code.length && code[i] !== ch) {
+				if (code[i] === "\\") i += 1;
+				i += 1;
+			}
+			continue;
+		}
+		if (ch === "{") depth += 1;
+		else if (ch === "}") {
+			depth -= 1;
+			if (depth === 0) return code.slice(from, i + 1);
+		}
+	}
+	return undefined;
+}
+
 export function checkErrorThrow(path: string, content: string): ComplianceCheck[] {
 	const code = stripComments(content);
 	if (!code.includes("registerTool") || !code.includes("execute")) return [];
 
-	const returnsError =
-		/return\s*\{[^}]*isError:\s*true/.test(code) ||
-		/return\s*\{[^}]*error:\s*["'`]/.test(code);
+	const returned = returnedObject(code);
+	// `error:` is not a field on AgentToolResult, so returning one is read by the
+	// model as a success. `isError: true` is the real contract (0.99.0+).
+	const returnsErrorField = returned !== undefined && /\berror:\s*["'`]/.test(returned);
+	const returnsIsError = returned !== undefined && /isError:\s*true/.test(returned);
 	const throwsError = /throw\s+new\s+Error\(/.test(code);
 
-	if (returnsError && !throwsError) {
+	if (returnsErrorField && !throwsError) {
 		return [
 			createCheck({
 				rule: "error-throw",
 				label: "Tool Error Contract",
 				status: "warn",
-				details: "Returning an error object does not set isError. Use `throw new Error(...)`.",
+				details:
+					"`error:` is not a tool result field, so the model reads this as a success. " +
+					"Return `{ isError: true }` (0.99.0+) or `throw new Error(...)`.",
 				targetFile: path,
 			}),
 		];
@@ -176,6 +214,17 @@ export function checkErrorThrow(path: string, content: string): ComplianceCheck[
 				label: "Tool Error Contract",
 				status: "pass",
 				details: "Failures raised via throw new Error()",
+				targetFile: path,
+			}),
+		];
+	}
+	if (returnsIsError) {
+		return [
+			createCheck({
+				rule: "error-throw",
+				label: "Tool Error Contract",
+				status: "pass",
+				details: "Failure reported via `isError: true` (0.99.0+); `details` survives for the UI",
 				targetFile: path,
 			}),
 		];
