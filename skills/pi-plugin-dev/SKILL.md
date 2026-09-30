@@ -74,7 +74,7 @@ examples, not authority — the installed package always wins.
 
 ### 2. Custom Tools (`pi.registerTool`)
 - **String Enums:** Always use `StringEnum(["a", "b"] as const)` from `@earendil-works/pi-ai`. Never use `Type.Union`/`Type.Literal` (breaks Google Gemini API).
-- **Error Reporting:** Always `throw new Error(...)` to signal a tool error (`isError: true`). Returning an object never sets the error flag.
+- **Error Reporting:** `throw new Error(...)` for unexpected failures. **Since 0.99.0 a tool may also *return* `{ isError: true }`** — the model sees `content` as an error result exactly like a thrown error, but `details` and `structuredContent` survive for the UI and programmatic callers. Returning an object *without* `isError: true` is a success. Details: `references/tools-and-schema.md`.
 - **Payloads:** Must be strictly JSON-compatible (arrays readonly).
 
 ### 3. Autocomplete & Slash Commands (`getArgumentCompletions`)
@@ -89,7 +89,7 @@ examples, not authority — the installed package always wins.
 - `pi.on(event, handler)` returns an unsubscribe function. Store every one and drain them in `session_shutdown` — that handler is the drainer itself, so it does not need to be stored. Full event + API surface: `references/event-and-api-surface.md`.
 - Never start processes, sockets, watchers or timers in the extension factory: some invocations load extensions without starting a session. Start long-lived resources from `session_start` and make `session_shutdown` idempotent (quit, reload, session replacement and exit all converge there).
 - Tool calls from one assistant message can run in parallel: never assume a sibling call's start event or result exists.
-- `turn_end` and `agent_before_settle` are actionable boundaries in current 0.87.x: they can inject structural entries. Confirm against the installed `types.d.ts` after any upgrade.
+- `turn_end` and `agent_before_settle` are actionable boundaries in current 0.99.x: they can inject structural entries. Confirm against the installed `types.d.ts` after any upgrade.
 
 ### 5. State Persistence
 - **Conversation-linked state:** Store state in tool result `details` and restore on `session_start` from `ctx.sessionManager.getBranch()`. Survives `/tree` and branch switching.

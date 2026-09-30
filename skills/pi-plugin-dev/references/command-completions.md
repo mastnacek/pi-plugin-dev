@@ -25,7 +25,7 @@ Therefore, the plugin's `getArgumentCompletions` must explicitly dictate whether
 
 ## Lazy Parameter Completion (Mandatory)
 
-**A trailing space alone does NOT reveal the next level.** Verified against engine `0.87.1` (`CombinedAutocompleteProvider`):
+**A trailing space alone does NOT reveal the next level.** Verified against engine `0.99.1` (`CombinedAutocompleteProvider`):
 
 - `getSuggestions` only takes the argument-completion branch when `force === false`.
 - `handleTabCompletion()` calls `forceFileAutocomplete(true)` whenever the argument line already contains a space → argument completions are skipped entirely.

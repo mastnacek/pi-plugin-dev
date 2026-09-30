@@ -1,7 +1,7 @@
-# Event & API Surface (0.87.1)
+# Event & API Surface (0.99.1)
 
 The complete subscription surface of `ExtensionAPI`, verified against
-`dist/core/extensions/types.d.ts` on `@earendil-works/pi-coding-agent` 0.87.1.
+`dist/core/extensions/types.d.ts` on `@earendil-works/pi-coding-agent` 0.99.1.
 Use this when the integration point is not already obvious from
 `references/lifecycle-and-events.md`.
 
@@ -116,8 +116,9 @@ replacement invalidates the old context — keep only plain data across it.
 - **`session_shutdown` converges from several paths** (quit, reload, session
   replacement, process exit). Guard the cleanup so running it twice is safe.
 - **Tool results** need model-facing `content` plus a JSON-compatible `details`
-  field (`details: undefined` when there is none). Throw to fail; returning an
-  object never sets `isError`.
+  field (`details: undefined` when there is none). Throw to fail, or return
+  `{ isError: true }` (since 0.99.0) when you want `details` to survive for the
+  UI; returning a plain object never sets `isError`.
 - **`terminate: true`** ends the loop only if every tool in the batch agrees.
 - **Nested model calls**: include their `usage` in the tool result so session
   accounting stays accurate.

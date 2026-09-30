@@ -71,12 +71,21 @@ export function registerTools(pi: ExtensionAPI): void {
 ## 3. Tool Execution & Error Contract
 
 ### Signalling Errors (`throw` vs `return`)
-- **To report an error:** **THROW AN EXCEPTION.**
+Two valid routes. Pick by whether you need structured data back.
+
+- **Unexpected failure — THROW.** The engine synthesizes the error result.
   ```typescript
-  // CORRECT: Signals error to Pi engine (sets isError: true)
   throw new Error("Connection failed: timeout");
   ```
-- Returning `{ content: [{ type: "text", text: "Error" }] }` does **NOT** set `isError: true`, regardless of properties in `details` or `content`.
+- **Expected failure — RETURN `isError: true`** (new in 0.99.0). The model sees `content` as an error result, exactly like a thrown error, but `details` and `structuredContent` are kept for the UI and programmatic callers.
+  ```typescript
+  return {
+    content: [{ type: "text", text: "No entry matched that query." }],
+    details: { query, scanned: 412 },   // still readable by UI + ctx.executeTool callers
+    isError: true,
+  };
+  ```
+- Returning a plain object **without** `isError: true` does **NOT** mark an error, whatever `details` or `content` say — the model receives it as a success.
 
 ### Terminating the Agent Loop (`terminate: true`)
 - Returning `{ content, details, terminate: true }` signals the agent to finish after this tool batch completes.

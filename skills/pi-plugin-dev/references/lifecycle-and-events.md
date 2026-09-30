@@ -47,7 +47,7 @@ export default function (pi: ExtensionAPI): void {
 - `before_agent_start`: Hook run before prompt reaches provider. Can modify system prompt (`systemPrompt`, `forceSystemPrompt`, or `systemPromptOptions`).
 - `agent_start`: Generation stream begins.
 - `turn_start`: Beginning of one reasoning turn.
-- `turn_end`: End of reasoning turn. **Actionable boundary (0.87.x):** return `{ entries: [...event.entries, draft], continue: true }` to force another turn.
+- `turn_end`: End of reasoning turn. **Actionable boundary (0.99.x):** return `{ entries: [...event.entries, draft], continue: true }` to force another turn.
 - `agent_before_settle`: Actionable finish gate. Can append entries and force continuation before final rest.
 - `agent_settled`: Final notification. The agent has settled; no further continuation allowed here.
 
@@ -77,7 +77,7 @@ non-obvious contracts: `references/event-and-api-surface.md`.
 
 ---
 
-## 3. Engine Compatibility Notes (0.87.x)
+## 3. Engine Compatibility Notes (0.99.x)
 
 - **Canonical Session Context:** `SessionManager` is the single source of truth. Assigning `session.agent.state.messages` directly no longer overrides history.
 - **Append-Only Context Edits:** `sessionManager.appendContextEdit(entryId, replacement | null)` replaces or omits messages in future context without rewriting transcript history.
