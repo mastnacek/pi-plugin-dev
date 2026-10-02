@@ -46,6 +46,27 @@ the one command meant to catch this drift could not see it.
 - `lifecycle-and-events.md`, `SKILL.md`, `README.md`: stale `0.87.x` / `0.99.1`
   / `0.99.x` labels updated, with the note that 1.0.0 changed no event contract.
 
+### 1.0.0 changelog audit
+
+Every line of the 1.0.0 entry (New Features / Added / Changed / Fixed) was
+checked against this plugin. Most are engine-side, MCP-side or `/login`-side.
+Four were worth a real look; three needed no action, because the plugin is
+already built the right way:
+
+| Changelog line | Verdict |
+|---|---|
+| Fullscreen TUI by default | Actioned — `tui-and-components.md` §4 added; `render(width)` still receives the terminal width, so `tui-fit.ts` stays correct unchanged |
+| `ctx.modelRegistry.generateImages()` | Actioned — documented, with the session-cost rule |
+| System theme keeps palette chroma (`#10255`, `#10293`) | No action — `src/` holds zero hardcoded colors; every visual uses `theme.fg`/`theme.bg` with semantic names, so the corrected chroma is inherited automatically |
+| Color bleeding past highlights in fullscreen (`#10169`) | No action — `renderSkillAuditEntry()` builds a `Box` of `Text` components instead of concatenating pre-styled runs, so it cannot produce a styled token ending at a highlight boundary |
+
+The remaining lines are provider login (`Radius`, Anthropic copy-code, the
+"not configured" / "account" wording), MCP OAuth hardening and credential
+scoping, codemode prompt cost and recovery errors, `quietStartup: "header"`, the
+startup logo, and `--provider` without `--model` — none touch extension code.
+The scaffold was checked too: it emits no version claims and no TUI-mode text,
+so it had nothing to go stale.
+
 ## 1.6.0 — the line limit is enforced before the write, not after it
 
 - `line-monitor.ts`: `projectResultingLines(resolvedPath, toolName, input, maxLines)`
