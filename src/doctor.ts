@@ -12,12 +12,18 @@
  * and wording are unit-tested without touching the real home directory.
  */
 
-import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
-import { createRequire } from "node:module";
+import { existsSync, readdirSync, statSync } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import { ALL_INVARIANTS, auditCodeContent, findLocalInstallSources } from "./auditor.js";
-import { checkEngineVersion } from "./engine-version.js";
+import {
+	locateEnginePackage,
+	locateRunningEnginePackage,
+	readJson,
+	readPackageVersion,
+	readText,
+} from "./engine-locate.js";
+import { checkEngineSource, checkEngineVersion } from "./engine-version.js";
 
 export type DoctorStatus = "pass" | "warn" | "fail" | "info";
 
@@ -36,6 +42,12 @@ export interface DoctorReport {
 export interface DoctorInput {
 	pluginRoot: string;
 	engineVersion?: string;
+	/**
+	 * Version of the engine copy the workspace resolves through its own
+	 * `node_modules`, when it differs from the engine that is running pi.
+	 * Left undefined when there is only one copy, so the report stays quiet.
+	 */
+	resolvedEngineVersion?: string;
 	/** Newest version published on npm, when the registry was reachable. */
 	latestEngineVersion?: string;
 	engineDocsDir?: string;
@@ -70,6 +82,7 @@ export function checkSkillFrontmatter(markdown: string): { ok: boolean; details:
 
 /** Compare two dotted versions. Returns <0, 0 or >0. Non-numeric parts sort as 0. */
 export { compareVersions, fetchLatestEngineVersion } from "./engine-version.js";
+export { locateEnginePackage, locateRunningEnginePackage } from "./engine-locate.js";
 
 /** Turn collected facts into the ordered report. Pure. */
 export function buildDoctorReport(input: DoctorInput): DoctorReport {
@@ -88,6 +101,14 @@ export function buildDoctorReport(input: DoctorInput): DoctorReport {
 		latest: input.latestEngineVersion,
 	});
 	items.push(item("Engine latest", version.status, version.details));
+
+	// A second engine copy in the workspace is the failure mode §0 warns about:
+	// `tsc` validates against it while a different version executes.
+	const source = checkEngineSource({
+		running: input.engineVersion,
+		resolved: input.resolvedEngineVersion,
+	});
+	items.push(item("Engine source", source.status, source.details));
 
 	if (input.engineDocsDir && existsSync(input.engineDocsDir)) {
 		items.push(item("Engine docs", "pass", input.engineDocsDir));
@@ -170,113 +191,6 @@ export function formatDoctorReport(report: DoctorReport): string {
 
 // ------------------------------------------------------------- collection
 
-/** Walk up from a directory until the package.json with `name` is found. */
-function findPackageRootUp(startDir: string, packageName: string): string | undefined {
-	let dir = startDir;
-	for (let i = 0; i < 12; i += 1) {
-		const parsed = readJson(join(dir, "package.json"));
-		if (parsed?.name === packageName) return dir;
-		const parent = dirname(dir);
-		if (parent === dir) break;
-		dir = parent;
-	}
-	return undefined;
-}
-
-/** Treat a path that exists and is a directory as the start, else its parent. */
-function toStartDir(pathOrDir: string): string {
-	try {
-		if (statSync(pathOrDir).isDirectory()) return pathOrDir;
-	} catch {
-		// Not a real path: fall through to dirname.
-	}
-	return dirname(pathOrDir);
-}
-
-/**
- * Node-style resolution: check `<dir>/node_modules/<pkg>` on every ancestor.
- *
- * Required because the engine's `exports` map has no `.` entry, so
- * `require.resolve("@earendil-works/pi-coding-agent")` throws
- * ERR_PACKAGE_PATH_NOT_EXPORTED even though the package is installed.
- */
-function findInNodeModules(startDir: string, packageName: string): string | undefined {
-	let dir = startDir;
-	for (;;) {
-		const candidate = join(dir, "node_modules", packageName);
-		const parsed = readJson(join(candidate, "package.json"));
-		if (parsed?.name === packageName) return candidate;
-		const parent = dirname(dir);
-		if (parent === dir) return undefined;
-		dir = parent;
-	}
-}
-
-/**
- * Locate the installed engine package, preferring a copy that ships `docs/`.
- *
- * Candidates in order: the module resolver, the plugin root, the process cwd
- * and the running CLI entry (which lives inside the engine's own install tree
- * when Pi launched us).
- */
-export function locateEnginePackage(pluginRoot: string): string | undefined {
-	const name = "@earendil-works/pi-coding-agent";
-
-	// Pi can point us at its own package directory (useful under store paths).
-	const pinned = process.env.PI_PACKAGE_DIR;
-	if (pinned) {
-		const root = findPackageRootUp(toStartDir(pinned), name) ?? findInNodeModules(pinned, name);
-		if (root) return root;
-	}
-
-	try {
-		const require = createRequire(import.meta.url);
-		for (const spec of [name, `${name}/package.json`]) {
-			try {
-				const root = findPackageRootUp(toStartDir(require.resolve(spec)), name);
-				if (root) return root;
-			} catch {
-				// exports may block this specifier; try the next one.
-			}
-		}
-	} catch {
-		// createRequire unavailable (non-Node host); fall through to the walk.
-	}
-
-	const seeds = [pluginRoot, process.cwd(), ...(process.argv[1] ? [process.argv[1]] : [])];
-	let fallback: string | undefined;
-	for (const seed of seeds) {
-		const root = findInNodeModules(toStartDir(seed), name);
-		if (root === undefined) continue;
-		if (existsSync(join(root, "docs"))) return root;
-		fallback ??= root;
-	}
-	return fallback;
-}
-
-/** Parsed JSON object, or undefined when the file is missing or malformed. */
-type JsonObject = Record<string, unknown>;
-
-function readJson(path: string): JsonObject | undefined {
-	try {
-		const parsed: unknown = JSON.parse(readFileSync(path, "utf8"));
-		if (parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)) {
-			return parsed as JsonObject;
-		}
-		return undefined;
-	} catch {
-		return undefined;
-	}
-}
-
-function readText(path: string): string | undefined {
-	try {
-		return readFileSync(path, "utf8");
-	} catch {
-		return undefined;
-	}
-}
-
 /** Collect `index.ts` plus every `.ts` under `src/`. */
 function collectSourceFiles(root: string): Array<{ path: string; content: string }> {
 	const files: Array<{ path: string; content: string }> = [];
@@ -318,18 +232,27 @@ export function collectDoctorReport(
 	options: { latestEngineVersion?: string } = {},
 ): DoctorReport {
 	let engineVersion: string | undefined;
+	let resolvedEngineVersion: string | undefined;
 	let engineDocsDir: string | undefined;
 	let changelogHead: string[] | undefined;
 
 	try {
-		const packageRoot = locateEnginePackage(pluginRoot);
+		// Prefer the engine that is actually running: it is the one whose API
+		// every `pi.on()` call and every `ctx.*` field must satisfy.
+		const runningRoot = locateRunningEnginePackage();
+		const resolvedRoot = locateEnginePackage(pluginRoot);
+		const packageRoot = runningRoot ?? resolvedRoot;
 		if (packageRoot) {
-			const pkg = readJson(join(packageRoot, "package.json"));
-			engineVersion = typeof pkg?.version === "string" ? pkg.version : undefined;
+			engineVersion = readPackageVersion(packageRoot);
 			const docs = join(packageRoot, "docs");
 			engineDocsDir = docs;
 			const changelog = readText(join(packageRoot, "CHANGELOG.md"));
 			changelogHead = changelog?.split(/\r?\n/).slice(0, 8);
+		}
+		// Only surface the workspace copy when it really is a second one, so a
+		// single-copy setup does not get a noisy comparison row.
+		if (runningRoot && resolvedRoot && runningRoot !== resolvedRoot) {
+			resolvedEngineVersion = readPackageVersion(resolvedRoot);
 		}
 	} catch {
 		// Leave undefined; buildDoctorReport reports the warning.
@@ -340,6 +263,7 @@ export function collectDoctorReport(
 	return buildDoctorReport({
 		pluginRoot,
 		engineVersion,
+		resolvedEngineVersion,
 		latestEngineVersion: options.latestEngineVersion,
 		engineDocsDir,
 		changelogHead,

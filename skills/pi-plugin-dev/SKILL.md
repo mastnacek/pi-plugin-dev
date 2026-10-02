@@ -89,7 +89,7 @@ examples, not authority — the installed package always wins.
 - `pi.on(event, handler)` returns an unsubscribe function. Store every one and drain them in `session_shutdown` — that handler is the drainer itself, so it does not need to be stored. Full event + API surface: `references/event-and-api-surface.md`.
 - Never start processes, sockets, watchers or timers in the extension factory: some invocations load extensions without starting a session. Start long-lived resources from `session_start` and make `session_shutdown` idempotent (quit, reload, session replacement and exit all converge there).
 - Tool calls from one assistant message can run in parallel: never assume a sibling call's start event or result exists.
-- `turn_end` and `agent_before_settle` are actionable boundaries in current 0.99.x: they can inject structural entries. Confirm against the installed `types.d.ts` after any upgrade.
+- `turn_end` and `agent_before_settle` are actionable boundaries (since 0.99.x, still true in 1.0.0): they can inject structural entries. Confirm against the installed `types.d.ts` after any upgrade.
 
 ### 5. State Persistence
 - **Conversation-linked state:** Store state in tool result `details` and restore on `session_start` from `ctx.sessionManager.getBranch()`. Survives `/tree` and branch switching.
@@ -105,6 +105,7 @@ examples, not authority — the installed package always wins.
 - `ctx.hasUI` is `true` in **RPC as well as TUI**. `ctx.ui.custom()` returns `undefined` in RPC and `ctx.ui.onTerminalInput()` is a no-op, so guard both with `ctx.mode === "tui"`.
 - `notify` / `setStatus` / `setWidget` and dialog methods are fine behind `ctx.hasUI`; json and print modes have no UI at all, so keep tool and event behavior independent of rendering.
 - **TUI Width Safety:** `pi-tui` `TUI.doRender` hard-crashes if a rendered line exceeds terminal width. Always compute display width via `visibleWidth()` and clamp via `truncateToWidth()` (see `references/tui-and-components.md`).
+- **The TUI runs fullscreen by default since 1.0.0** (`tuiMode` defaults to `"fullscreen"`; set `"regular"` or pass `--tui-mode regular` to keep terminal scrollback). Component code needs no change — the renderer still hands `render(width)` the terminal width — but anything that read the terminal's own scrollback for context no longer can. Details: `references/tui-and-components.md`.
 
 ### 8. Subagent Recursion Guard
 - Subagent processes spawned by `pi-subagents` or child sessions load all global extensions.

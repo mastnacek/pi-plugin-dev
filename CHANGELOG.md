@@ -1,5 +1,51 @@
 # Changelog
 
+## 1.7.0 — pi 1.0.0 alignment: the doctor now compares two engines, not one
+
+The workspace pinned `^0.99.2`, which excludes `1.0.0`, so `tsc` validated every
+plugin against 0.99.2 types while pi 1.0.0 was the process actually executing.
+`/plugin-dev doctor` reported the workspace copy and called it "the engine" — so
+the one command meant to catch this drift could not see it.
+
+### Changed
+
+- `engine-locate.ts`: new module — `locateEnginePackage()` moved here out of
+  `doctor.ts` (which was at the line limit) together with the JSON/package
+  readers. Adds `locateRunningEnginePackage()`, which anchors the search on the
+  CLI entry pi was launched from (`process.argv[1]`) and only then falls back to
+  `PI_PACKAGE_DIR`. Outside a pi process it returns `undefined` and the caller
+  keeps the old walk-up.
+- `engine-version.ts`: adds `checkEngineSource()` — a pure comparison of the
+  running engine against the workspace-resolved copy. Equal → `pass`; divergent
+  → `warn` naming both versions and the stale-API consequence; a single copy →
+  `info`, so a normal install gets no new noise.
+- `doctor.ts`: the report prefers the running engine for the `Engine`, `Engine
+  docs` and `Changelog head` rows, and emits a new `Engine source` row. The
+  comparison only appears when the two roots really differ.
+- `doctor.test.ts`: +6 tests — pass/divergent/single-copy for `checkEngineSource`,
+  the `Engine source` row in both directions, and a resolution test for
+  `locateRunningEnginePackage()`.
+
+### Documentation
+
+- `event-and-api-surface.md`: retitled to 1.0.0 and re-verified against
+  `types.d.ts`. Documents `ctx.modelRegistry.generateImages()` and the
+  `getAvailableOfType` / `getModelsOfType` / `getModelOfType` / `getAllModels`
+  family, and adds the `ctx.executeTool()` nested-call contract.
+- `tui-and-components.md`: new section on fullscreen, the default since 1.0.0 —
+  what is unchanged for component authors (`render(width)` still gets the terminal
+  width, so every width-safety rule holds) and what is not (the transcript is
+  pi-owned, overlays cannot be scrolled away, no extension-owned mouse reporting).
+- `tools-and-schema.md`: `generateImages()` cost counts toward the session like
+  `classify()`, so the nested-usage rule now names both.
+- `command-completions.md`: re-verified against 1.0.0's `pi-tui`; the lazy
+  completion contract still holds, and a slash command after leading whitespace
+  now opens the same menu.
+- `api-docs-index.md`: adds the missing `codemode.md`, image models,
+  `terminal-setup.md`, `windows.md` and `termux.md`.
+- `lifecycle-and-events.md`, `SKILL.md`, `README.md`: stale `0.87.x` / `0.99.1`
+  / `0.99.x` labels updated, with the note that 1.0.0 changed no event contract.
+
 ## 1.6.0 — the line limit is enforced before the write, not after it
 
 - `line-monitor.ts`: `projectResultingLines(resolvedPath, toolName, input, maxLines)`

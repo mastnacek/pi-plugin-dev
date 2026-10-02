@@ -123,3 +123,35 @@ export function checkEngineVersion(input: {
 	}
 	return { status: "pass", details: `${input.latest} — up to date` };
 }
+
+/**
+ * Compare the engine that is *running* pi against the engine copy the workspace
+ * resolves to its own `node_modules`.
+ *
+ * These are two different facts and the second one lies when they diverge: a
+ * monorepo can pin an older engine for type-checking while a newer one executes.
+ * Every `tsc` run then validates against an API the runtime does not have, which
+ * is precisely the drift SKILL.md §0 exists to prevent.
+ *
+ * Pure: the caller supplies both versions, so the rule is unit-testable without
+ * a filesystem and without a running pi.
+ */
+export function checkEngineSource(input: { running?: string; resolved?: string }): VersionCheck {
+	const running = input.running;
+	const resolved = input.resolved;
+	if (!running) {
+		return { status: "info", details: "unknown — no running pi engine resolved" };
+	}
+	if (!resolved) {
+		return { status: "info", details: `${running} — no second engine copy to compare against` };
+	}
+	if (compareVersions(running, resolved) === 0) {
+		return { status: "pass", details: `${running} — resolved copy matches the running engine` };
+	}
+	return {
+		status: "warn",
+		details:
+			`running ${running}, workspace copy is ${resolved} — ` +
+			"type-checking against a stale API; realign the pin (SKILL.md §0)",
+	};
+}

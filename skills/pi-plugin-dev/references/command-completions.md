@@ -25,7 +25,7 @@ Therefore, the plugin's `getArgumentCompletions` must explicitly dictate whether
 
 ## Lazy Parameter Completion (Mandatory)
 
-**A trailing space alone does NOT reveal the next level.** Verified against engine `0.99.1` (`CombinedAutocompleteProvider`):
+**A trailing space alone does NOT reveal the next level.** Verified against engine `1.0.0` (`CombinedAutocompleteProvider`):
 
 - `getSuggestions` only takes the argument-completion branch when `force === false`.
 - `handleTabCompletion()` calls `forceFileAutocomplete(true)` whenever the argument line already contains a space → argument completions are skipped entirely.
@@ -49,6 +49,8 @@ if (atParameterLevel) {
 ```
 
 Keep the trailing-space parent item for **partial** prefixes (`st`, `stat`) so Tab still inserts token + space. Subcommands with free-form or unknown arguments keep the trailing-space parent only (there is nothing enumerable to return early).
+
+Since 1.0.0 the editor also recognises a slash command after leading whitespace (`isInSlashCommandContext()` trims the start of the line before testing the `/`, and `isAtStartOfMessage()` compares the trimmed text), so `   /cmd` opens the same menu as `/cmd`. Do not trim the `prefix` you receive — the engine already hands you the part after the command name.
 
 ---
 

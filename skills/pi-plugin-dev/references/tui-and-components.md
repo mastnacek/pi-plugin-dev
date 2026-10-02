@@ -62,7 +62,35 @@ handleInput(data: string): boolean {
 
 ---
 
-## 3. Subagent Recursion Guard (`PI_SUBAGENT`)
+## 4. Fullscreen Mode (the default since 1.0.0)
+
+Pi's TUI runs **fullscreen** out of the box. Set `tuiMode: "regular"` in settings, or pass
+`--tui-mode regular`, to keep the terminal's normal scrollback. Related settings:
+`fullscreenExitOutput`, `fullscreenScrollbar`, `fullscreenCopyOnSelect`,
+`fullscreenWheelScrollLines`.
+
+**What does not change:** the renderer still calls `render(width)` with the terminal
+width, so the width-safety rules in §1 apply unchanged and no overlay or widget code
+needs editing. `ctx.ui.custom({ overlay: true })` and `ctx.ui.setWidget()` behave the
+same in both modes.
+
+**What does change:** the transcript is owned by pi instead of scrolling out of the
+terminal buffer.
+
+- Anything an extension wrote that relied on the user scrolling back in their own
+  terminal to read context is gone. Do not park output there — use `notify`,
+  `setStatus`, a widget, or `pi.appendEntry()` with a renderer.
+- A long-lived overlay is more intrusive without surrounding scrollback to move it
+  out of the way. Keep overlays short-lived and dismissible.
+- Mouse selection and wheel scrolling are handled by pi in fullscreen, so an
+  extension must not install its own raw mouse reporting.
+- On exit, pi prints `fullscreenExitOutput` (`"transcript"` by default, or
+  `"resume-hint"`). A plugin that wants the transcript on exit should not duplicate
+  that write.
+
+---
+
+## 5. Subagent Recursion Guard (`PI_SUBAGENT`)
 
 ### The Problem
 When Pi spawns subagents or child sessions (e.g. via `pi-subagents`, `pi-goal-x`), child agents inherit all globally registered extensions in `~/.pi/agent/extensions/` and packages.

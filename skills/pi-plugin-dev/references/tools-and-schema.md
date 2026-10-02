@@ -100,6 +100,8 @@ Two valid routes. Pick by whether you need structured data back.
     usage: { inputTokens: 150, outputTokens: 50, costUsd: 0.0002 },
   };
   ```
+- This is not only about chat completions. Since 1.0.0 `ctx.modelRegistry.generateImages()` runs image models with the session's credentials and its cost counts toward the session exactly like `models.classify()` does — omit the `usage` and the footer under-reports what the turn actually spent.
+- Resolve the model through the registry rather than a hardcoded id: `getAvailableOfType("image")` lists what the current credentials can actually reach, and an unknown id should produce an error naming that call instead of a silent empty result.
 
 ### Streaming Partial Progress (`onUpdate`)
 - Call `onUpdate?.({ content: [{ type: "text", text: "Working..." }] })` during long-running tasks to stream visual feedback to the user interface.

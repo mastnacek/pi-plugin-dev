@@ -1,7 +1,7 @@
-# Event & API Surface (0.99.1)
+# Event & API Surface (1.0.0)
 
 The complete subscription surface of `ExtensionAPI`, verified against
-`dist/core/extensions/types.d.ts` on `@earendil-works/pi-coding-agent` 0.99.1.
+`dist/core/extensions/types.d.ts` on `@earendil-works/pi-coding-agent` 1.0.0.
 Use this when the integration point is not already obvious from
 `references/lifecycle-and-events.md`.
 
@@ -101,6 +101,21 @@ Other context fields: `cwd`, `sessionManager`, `modelRegistry`, `model`,
 `abort()`, `hasPendingMessages()`, `shutdown()`, `getContextUsage()`,
 `compact()`, `getSystemPrompt()`.
 
+**`ctx.modelRegistry` (1.0.0+)** is the typed route to a model of any operation,
+with credentials resolved at call time from stored logins, runtime API keys and
+`models.json` headers — never a key you handled yourself:
+
+| Call | Returns |
+|---|---|
+| `generateImages(...)` | base64 image blocks; counts toward session cost |
+| `classify(...)` | a classifier verdict + `usage` |
+| `getAvailableOfType("image")` / `getModelsOfType()` / `getModelOfType()` | catalogs filtered by operation |
+| `getAllModels()` / `getAllAvailable()` | everything registered, used or not |
+
+Report the returned `usage` in the tool result (§ Nested model calls) or the
+session footer under-counts the spend. An unknown model name should point the
+caller at `getAvailableOfType()` rather than failing silently.
+
 `ExtensionCommandContext` adds command-only operations: wait-until-idle,
 reload, tree navigation and session replacement (`withSession`). Session
 replacement invalidates the old context — keep only plain data across it.
@@ -121,7 +136,10 @@ replacement invalidates the old context — keep only plain data across it.
   UI; returning a plain object never sets `isError`.
 - **`terminate: true`** ends the loop only if every tool in the batch agrees.
 - **Nested model calls**: include their `usage` in the tool result so session
-  accounting stays accurate.
+  accounting stays accurate. This covers `ctx.modelRegistry.generateImages()`
+  and `.classify()` as much as it covers a chat completion.
+- **Nested tool calls**: `ctx.executeTool()` emits events with a
+  `parentToolCallId` and records bounded `nestedCalls` on the caller's result.
 - **File mutation**: wrap a read-modify-write tool in `withFileMutationQueue()`.
 - **Large results**: truncate the model-facing text and tell the model where to
   read the rest.

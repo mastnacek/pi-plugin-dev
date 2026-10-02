@@ -39,6 +39,7 @@ Base paths, once the package root is known:
 |---|---|
 | Extensions, tools, events, commands, UI context | `extensions.md` |
 | Tool exposure, `outputSchema`, nested `ctx.executeTool()` | `extensions.md` §Tool exposure |
+| Codemode (JS scripts calling tools, `models.*` API) | `codemode.md` |
 | MCP servers (stdio / streamable HTTP, OAuth) | `mcp.md` |
 | Virtual models (per-request physical model routing) | `virtual-models.md` |
 | Agent Skills specification & discovery | `skills.md` |
@@ -48,6 +49,7 @@ Base paths, once the package root is known:
 | Sessions, branching, resume | `sessions.md` |
 | Custom providers | `custom-provider.md` |
 | Models registry | `models.md` |
+| Image models and `generateImages()` | `models.md` §Use image models |
 | Keybindings | `keybindings.md` |
 | Settings, resources, flags | `settings.md` |
 | Prompt templates | `prompt-templates.md` |
@@ -55,6 +57,8 @@ Base paths, once the package root is known:
 | Environment variables | `environment-variables.md` |
 | Security & project trust | `security.md` |
 | SDK embedding | `sdk.md` |
+| Terminal setup (truecolor, Kitty/iTerm2 images) | `terminal-setup.md` |
+| Per-platform notes (Windows, WSL, Termux) | `windows.md`, `termux.md` |
 | Compaction | `compaction.md` |
 | Containerization / sandboxing | `containerization.md` |
 

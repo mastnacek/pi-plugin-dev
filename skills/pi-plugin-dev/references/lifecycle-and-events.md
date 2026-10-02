@@ -47,7 +47,7 @@ export default function (pi: ExtensionAPI): void {
 - `before_agent_start`: Hook run before prompt reaches provider. Can modify system prompt (`systemPrompt`, `forceSystemPrompt`, or `systemPromptOptions`).
 - `agent_start`: Generation stream begins.
 - `turn_start`: Beginning of one reasoning turn.
-- `turn_end`: End of reasoning turn. **Actionable boundary (0.99.x):** return `{ entries: [...event.entries, draft], continue: true }` to force another turn.
+- `turn_end`: End of reasoning turn. **Actionable boundary (since 0.99.x, unchanged in 1.0.0):** return `{ entries: [...event.entries, draft], continue: true }` to force another turn.
 - `agent_before_settle`: Actionable finish gate. Can append entries and force continuation before final rest.
 - `agent_settled`: Final notification. The agent has settled; no further continuation allowed here.
 
@@ -77,10 +77,11 @@ non-obvious contracts: `references/event-and-api-surface.md`.
 
 ---
 
-## 3. Engine Compatibility Notes (0.99.x)
+## 3. Engine Compatibility Notes (1.0.0)
 
 - **Canonical Session Context:** `SessionManager` is the single source of truth. Assigning `session.agent.state.messages` directly no longer overrides history.
 - **Append-Only Context Edits:** `sessionManager.appendContextEdit(entryId, replacement | null)` replaces or omits messages in future context without rewriting transcript history.
 - **Exhaustive Event Switches:** If an extension switches on `ExtensionEvent` or `SessionEntry`, handle `AgentBeforeSettleEvent` and `ContextEditEntry`.
 - **Tool Payload Safety:** `ToolCall.arguments` and `ToolResultMessage.details` are strictly `JsonValue`-compatible.
 - **UI Modes:** `ctx.mode` is `"tui" | "rpc" | "json" | "print"`; `ctx.hasUI` is `true` in tui **and rpc**. `ctx.ui.custom()` and `ctx.ui.onTerminalInput()` need a real terminal — in RPC `custom()` resolves to `undefined` and `onTerminalInput()` is a no-op. Guard them with `ctx.mode === "tui"`, keep `notify`/`setStatus`/`setWidget` on `ctx.hasUI`, and keep tool/event behavior independent of rendering so json/print modes stay functional.
+- **No event churn in 1.0.0:** the subscription surface is identical to 0.99.2. A 1.0.0 upgrade is additive — new extension APIs (`ctx.modelRegistry.generateImages()`), new settings, and a default TUI mode change — so no handler above needed edits.

@@ -2,7 +2,7 @@
 
 > Progressive context revelation skill for creating, editing, testing, and debugging **Pi coding agent plugins, extensions, and skills**.
 
-Verified against `@earendil-works/pi-coding-agent` **v0.87.1** — always re-verify with `/plugin-dev doctor`, which reports the latest version published on npm.
+Verified against `@earendil-works/pi-coding-agent` **v1.0.0** — always re-verify with `/plugin-dev doctor`, which reports the latest version published on npm.
 
 ## Rule 0: Pin to Latest
 
@@ -13,7 +13,12 @@ npm view @earendil-works/pi-coding-agent version   # the version you must build 
 /plugin-dev doctor                                 # installed vs. latest, warns on a gap
 ```
 
-`/plugin-dev doctor` gained an **Engine latest** check that compares the installed engine against the npm registry and warns with the exact gap. The registry call is bounded by a 3 s timeout and degrades to `unknown` offline, so it never blocks the rest of the report. The comparison logic lives in `src/engine-version.ts` as pure functions, so the rule is unit-tested without a registry or a filesystem.
+`/plugin-dev doctor` has two independent version checks, because on a monorepo "the installed engine" is two different facts:
+
+- **Engine latest** compares the engine pi is *running* against the npm registry and warns with the exact gap. The registry call is bounded by a 3 s timeout and degrades to `unknown` offline, so it never blocks the rest of the report.
+- **Engine source** compares that running engine against the copy the *workspace* resolves through its own `node_modules`. A mismatch means `tsc` is validating every plugin against an API the runtime does not have — the failure that a passing build otherwise hides.
+
+Both rules are pure functions in `src/engine-version.ts` and both are unit-tested without a registry or a filesystem. Engine location itself lives in `src/engine-locate.ts`, which anchors on the running CLI entry (`process.argv[1]`) before falling back to the module walk-up.
 
 Rule 0 is documented in full in `skills/pi-plugin-dev/SKILL.md` §0 and in `references/api-docs-index.md`.
 
@@ -33,9 +38,9 @@ Rule 0 is documented in full in `skills/pi-plugin-dev/SKILL.md` §0 and in `refe
 - **The Trailing Space Contract:** Exact specification for slash command autocompletion chaining (\`item.value\` space vs non-space rules).
 - **Lazy Parameter Completion & Live State Markers:** A fully typed non-terminal token expands its parameters immediately, and settings rows carry \`✓\` + \` · ● AKTIVNÍ\` for the value actually in effect.
 - **Schema & TypeBox Rules:** Mandatory \`StringEnum\` patterns from \`@earendil-works/pi-ai\` (avoiding Google Gemini 400 Bad Request errors) and error reporting via \`throw\`.
-- **0.87.x Engine Boundaries:** Canonical `SessionManager` context, append-only edits, and actionable `turn_end` / `agent_before_settle` hooks. Re-derive against the installed `types.d.ts` after every engine upgrade.
+- **Engine Boundaries (1.0.0):** Canonical `SessionManager` context, append-only edits, actionable `turn_end` / `agent_before_settle` hooks, and fullscreen-by-default TUI. Re-derive against the installed `types.d.ts` after every engine upgrade.
 - **State Persistence Guide:** Branch-aware session state (\`details\` + \`getBranch()\`), hidden TUI entries, and global config.
-- **Live Local Engine Docs:** Engine version, docs directory and changelog are resolved at runtime (`createRequire` + node_modules walk-up), never hardcoded to one machine or node path.
+- **Live Local Engine Docs:** Engine version, docs directory and changelog are resolved at runtime (running CLI entry first, then `createRequire` + node_modules walk-up), never hardcoded to one machine or node path.
 
 ## Commands
 

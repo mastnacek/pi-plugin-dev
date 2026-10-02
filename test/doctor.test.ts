@@ -16,7 +16,9 @@ import {
 	collectDoctorReport,
 	formatDoctorReport,
 	locateEnginePackage,
+	locateRunningEnginePackage,
 } from "../src/doctor.js";
+import { checkEngineSource } from "../src/engine-version.js";
 
 const SKILL_OK = ["---", "name: pi-plugin-dev", "description: Test skill", "---", "", "# Body"].join("\n");
 const SKILL_NO_FRONT = "# Body only\n";
@@ -127,6 +129,53 @@ test("locateEnginePackage honours PI_PACKAGE_DIR", () => {
 		if (previous === undefined) delete process.env.PI_PACKAGE_DIR;
 		else process.env.PI_PACKAGE_DIR = previous;
 	}
+});
+
+test("checkEngineSource passes when the resolved copy matches the running engine", () => {
+	const check = checkEngineSource({ running: "1.0.0", resolved: "1.0.0" });
+	assert.equal(check.status, "pass");
+	assert.match(check.details, /matches the running engine/);
+});
+
+test("checkEngineSource warns when the workspace copy lags the running engine", () => {
+	const check = checkEngineSource({ running: "1.0.0", resolved: "0.99.2" });
+	assert.equal(check.status, "warn");
+	assert.match(check.details, /running 1\.0\.0/);
+	assert.match(check.details, /workspace copy is 0\.99\.2/);
+	assert.match(check.details, /stale API/);
+});
+
+test("checkEngineSource stays informational with only one copy to compare", () => {
+	assert.equal(checkEngineSource({ running: "1.0.0" }).status, "info");
+	assert.equal(checkEngineSource({ resolved: "1.0.0" }).status, "info");
+	assert.match(checkEngineSource({}).details, /no running pi engine/);
+});
+
+test("report: a mismatched engine source warns on its own row", () => {
+	const report = buildDoctorReport({
+		pluginRoot: "/tmp/plugin",
+		engineVersion: "1.0.0",
+		resolvedEngineVersion: "0.99.2",
+	});
+	const entry = item(report, "Engine source");
+	assert.equal(entry.status, "warn");
+	assert.match(entry.details, /0\.99\.2/);
+});
+
+test("report: a single engine copy produces no mismatch noise", () => {
+	const report = buildDoctorReport({ pluginRoot: "/tmp/plugin", engineVersion: "1.0.0" });
+	assert.equal(item(report, "Engine source").status, "info");
+});
+
+test("locateRunningEnginePackage resolves the engine from the CLI entry", () => {
+	const root = locateRunningEnginePackage();
+	// Outside a pi process (plain `node --test`) argv[1] is the test runner, so
+	// there is nothing to resolve; inside pi it must land on a real package.
+	if (root === undefined) return;
+	assert.equal(
+		root.split(/[\\/]/).join("/").endsWith("node_modules/@earendil-works/pi-coding-agent"),
+		true,
+	);
 });
 
 test("collectDoctorReport finds the engine and this package's own sources", () => {
